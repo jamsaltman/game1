@@ -21,19 +21,12 @@ func _ready() -> void:
 	_game_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_pixel_display.texture = _game_viewport.get_texture()
 	_pixel_display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_pixel_display.mouse_filter = Control.MOUSE_FILTER_STOP
-	_pixel_display.gui_input.connect(_on_pixel_display_gui_input)
+	_bind_game_surface_input()
 	get_viewport().size_changed.connect(_resize_display)
 	_build_overlay()
 	_board.state_changed.connect(_refresh_overlay)
 	_resize_display()
 	_refresh_overlay()
-
-
-func _process(_delta: float) -> void:
-	var pointer := _get_pointer_data()
-	_board.update_hover(pointer.position, pointer.inside)
-
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -46,14 +39,20 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_pixel_display_gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
+	if event is InputEventMouseMotion:
+		var motion_event: InputEventMouseMotion = event
+		_board.update_hover(_display_to_viewport_pos(motion_event.position), true)
 		return
-	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	var local_position: Vector2 = event.position
-	var mapped_position := _display_to_viewport_pos(local_position)
-	_board.click_tile(mapped_position)
-	accept_event()
+	if event is InputEventMouseButton:
+		var button_event: InputEventMouseButton = event
+		if not button_event.pressed or button_event.button_index != MOUSE_BUTTON_LEFT:
+			return
+		_board.click_tile(_display_to_viewport_pos(button_event.position))
+		accept_event()
+
+
+func _on_pixel_display_mouse_exited() -> void:
+	_board.update_hover(Vector2.ZERO, false)
 
 
 func _resize_display() -> void:
@@ -209,21 +208,6 @@ func _on_upgrade_pressed(button: Button) -> void:
 	_board.choose_upgrade(upgrade_id)
 
 
-func _get_pointer_data() -> Dictionary:
-	var display_rect := Rect2(_pixel_display.global_position, _pixel_display.size)
-	var mouse_position := get_global_mouse_position()
-	if not display_rect.has_point(mouse_position):
-		return {
-			"inside": false,
-			"position": Vector2.ZERO,
-		}
-
-	return {
-		"inside": true,
-		"position": _display_to_viewport_pos(mouse_position - display_rect.position),
-	}
-
-
 func _display_to_viewport_pos(local_position: Vector2) -> Vector2:
 	var mapped_position := local_position
 	mapped_position.x *= _game_viewport.size.x / maxf(_pixel_display.size.x, 1.0)
@@ -231,3 +215,11 @@ func _display_to_viewport_pos(local_position: Vector2) -> Vector2:
 	mapped_position.x = clampf(mapped_position.x, 0.0, _game_viewport.size.x - 1.0)
 	mapped_position.y = clampf(mapped_position.y, 0.0, _game_viewport.size.y - 1.0)
 	return mapped_position
+
+
+func _bind_game_surface_input() -> void:
+	# Keep all board pointer handling on the rendered game surface so UI refactors
+	# cannot silently break clicks by changing propagation on parent controls.
+	_pixel_display.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pixel_display.gui_input.connect(_on_pixel_display_gui_input)
+	_pixel_display.mouse_exited.connect(_on_pixel_display_mouse_exited)
