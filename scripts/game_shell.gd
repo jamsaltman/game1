@@ -12,6 +12,7 @@ var _theme_manifest = ThemeManifestRef
 var _painter = InkPainterRef.new(_theme_manifest)
 var _action_button_map: Dictionary = {}
 var _upgrade_buttons: Array[Button] = []
+var _section_cache: Dictionary = {}
 
 @onready var _backdrop: TextureRect = $Backdrop
 @onready var _grime: TextureRect = $Grime
@@ -49,6 +50,8 @@ var _upgrade_buttons: Array[Button] = []
 
 
 func _ready() -> void:
+	# Side rails are intentionally scroll-wrapped so adding or resizing a panel
+	# cannot silently increase the shell height and push the board off-screen.
 	_apply_static_theme()
 	_build_pressure_bar()
 	_build_structure_cards()
@@ -73,17 +76,36 @@ func update_state(state: Dictionary) -> void:
 	_objective_label.text = String(state.get("objective_text", "Reach any edge to escape."))
 	_status_label.text = String(state.get("status", ""))
 	_refresh_pressure_bar(int(state.get("pressure_current", 0)), int(state.get("pressure_max", 10)))
-	_refresh_legend(state.get("legend_items", []))
-	_refresh_actions(state.get("action_items", []))
-	_refresh_log(state.get("log_items", []), String(state.get("status", "")))
-	_refresh_hover(state.get("hover_card", {}))
-	_refresh_structures(state.get("structure_items", []))
-	_refresh_minimap(state.get("minimap", {}))
-	_refresh_upgrade_overlay(state.get("upgrade_items", []))
+	_refresh_section_if_changed("legend", state.get("legend_items", []), _refresh_legend)
+	_refresh_section_if_changed("actions", state.get("action_items", []), _refresh_actions)
+	_refresh_section_if_changed("log", {
+		"items": state.get("log_items", []),
+		"status": String(state.get("status", "")),
+	}, _refresh_log_bundle)
+	_refresh_section_if_changed("hover", state.get("hover_card", {}), _refresh_hover)
+	_refresh_section_if_changed("structures", state.get("structure_items", []), _refresh_structures)
+	_refresh_section_if_changed("minimap", state.get("minimap", {}), _refresh_minimap)
+	_refresh_section_if_changed("upgrades", state.get("upgrade_items", []), _refresh_upgrade_overlay)
 
 
 func update_hover_card(card_data: Dictionary) -> void:
-	_refresh_hover(card_data)
+	_refresh_section_if_changed("hover", card_data, _refresh_hover)
+
+
+func reset_visual_cache() -> void:
+	_section_cache.clear()
+
+
+func _refresh_section_if_changed(section_id: String, payload, refresh_callable: Callable) -> void:
+	var next_key := JSON.stringify(payload, "", true)
+	if _section_cache.get(section_id, "") == next_key:
+		return
+	_section_cache[section_id] = next_key
+	refresh_callable.call(payload)
+
+
+func _refresh_log_bundle(bundle: Dictionary) -> void:
+	_refresh_log(bundle.get("items", []), String(bundle.get("status", "")))
 
 
 func _apply_static_theme() -> void:
