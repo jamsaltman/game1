@@ -1,0 +1,365 @@
+class_name GameShell
+extends Control
+
+signal action_requested(action_id: String)
+signal upgrade_requested(upgrade_id: String)
+signal reset_requested
+
+const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
+const InkPainterRef = preload("res://scripts/ink_painter.gd")
+
+var _theme_manifest = ThemeManifestRef
+var _painter = InkPainterRef.new(_theme_manifest)
+var _action_button_map: Dictionary = {}
+var _upgrade_buttons: Array[Button] = []
+
+@onready var _backdrop: TextureRect = $Backdrop
+@onready var _grime: TextureRect = $Grime
+@onready var _left_title_panel: PanelContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel
+@onready var _status_panel: PanelContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel
+@onready var _legend_panel: PanelContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel
+@onready var _board_panel: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel
+@onready var _action_panel: PanelContainer = $Margin/Root/Bottom/ActionDock
+@onready var _hover_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel
+@onready var _log_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/LogPanel
+@onready var _structure_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel
+@onready var _minimap_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel
+@onready var _title_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox/Title
+@onready var _subtitle_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox/Subtitle
+@onready var _round_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Round
+@onready var _pressure_value_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureRow/PressureValue
+@onready var _objective_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Objective
+@onready var _status_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Status
+@onready var _pressure_bar: HBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureBar
+@onready var _legend_list: VBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox/LegendScroll/LegendList
+@onready var _board_host: Control = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost
+@onready var _pixel_display: TextureRect = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/PixelDisplay
+@onready var _upgrade_overlay: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay
+@onready var _upgrade_title: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeTitle
+@onready var _upgrade_buttons_box: VBoxContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeButtons
+@onready var _action_row: HBoxContainer = $Margin/Root/Bottom/ActionDock/MarginBox/ActionRow
+@onready var _hover_state_label: Label = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverState
+@onready var _hover_card: TextureRect = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverCard
+@onready var _hover_title_label: Label = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverTitle
+@onready var _hover_body_label: Label = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverBody
+@onready var _next_reveal_label: Label = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/NextReveal
+@onready var _log_list: VBoxContainer = $Margin/Root/Top/RightRailScroll/RightRail/LogPanel/MarginBox/LogBox/LogList
+@onready var _structure_grid: GridContainer = $Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel/MarginBox/StructuresBox/StructureGrid
+@onready var _minimap_texture: TextureRect = $Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel/MarginBox/MiniMapBox/MiniMapTexture
+
+
+func _ready() -> void:
+	_apply_static_theme()
+	_build_pressure_bar()
+	_build_structure_cards()
+	_build_upgrade_buttons()
+	resized.connect(_refresh_backdrop_textures)
+	call_deferred("_refresh_backdrop_textures")
+
+
+func get_board_host() -> Control:
+	return _board_host
+
+
+func get_pixel_display() -> TextureRect:
+	return _pixel_display
+
+
+func update_state(state: Dictionary) -> void:
+	_title_label.text = String(state.get("title_text", _theme_manifest.title_text))
+	_subtitle_label.text = String(state.get("subtitle_text", _theme_manifest.subtitle_text))
+	_round_label.text = "ROUND %02d" % int(state.get("depth", 1))
+	_pressure_value_label.text = "%d / %d" % [int(state.get("pressure_current", 0)), int(state.get("pressure_max", 10))]
+	_objective_label.text = String(state.get("objective_text", "Reach any edge to escape."))
+	_status_label.text = String(state.get("status", ""))
+	_refresh_pressure_bar(int(state.get("pressure_current", 0)), int(state.get("pressure_max", 10)))
+	_refresh_legend(state.get("legend_items", []))
+	_refresh_actions(state.get("action_items", []))
+	_refresh_log(state.get("log_items", []), String(state.get("status", "")))
+	_refresh_hover(state.get("hover_card", {}))
+	_refresh_structures(state.get("structure_items", []))
+	_refresh_minimap(state.get("minimap", {}))
+	_refresh_upgrade_overlay(state.get("upgrade_items", []))
+
+
+func update_hover_card(card_data: Dictionary) -> void:
+	_refresh_hover(card_data)
+
+
+func _apply_static_theme() -> void:
+	var dark_panel: StyleBoxTexture = _painter.make_panel_style("dark")
+	var paper_panel: StyleBoxTexture = _painter.make_panel_style("paper")
+	var paper_soft_panel: StyleBoxTexture = _painter.make_panel_style("paper_soft")
+	for panel in [_left_title_panel, _status_panel, _legend_panel, _board_panel, _action_panel, _log_panel, _structure_panel, _minimap_panel]:
+		panel.add_theme_stylebox_override("panel", dark_panel)
+	_hover_panel.add_theme_stylebox_override("panel", paper_panel)
+	_upgrade_overlay.add_theme_stylebox_override("panel", paper_soft_panel)
+	_apply_label_theme(_title_label, 34, _theme_manifest.get_color("paper"), true)
+	_apply_label_theme(_subtitle_label, 14, _theme_manifest.get_color("muted"), false)
+	_apply_label_theme(_round_label, 20, _theme_manifest.get_color("paper"), true)
+	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureRow/PressureLabel, 13, _theme_manifest.get_color("muted"), true)
+	_apply_label_theme(_pressure_value_label, 16, _theme_manifest.get_color("paper"), false)
+	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/ObjectiveHeading, 13, _theme_manifest.get_color("muted"), true)
+	_apply_label_theme(_objective_label, 18, _theme_manifest.get_color("paper"), false)
+	_objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/StatusHeading, 13, _theme_manifest.get_color("muted"), true)
+	_apply_label_theme(_status_label, 15, _theme_manifest.get_color("muted"), false)
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_panel_headings()
+	_apply_label_theme(_hover_state_label, 13, _theme_manifest.get_color("muted"), false)
+	_apply_label_theme(_hover_title_label, 24, _theme_manifest.get_color("ink"), true)
+	_apply_label_theme(_hover_body_label, 16, _theme_manifest.get_color("ink_soft"), false)
+	_hover_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_theme(_next_reveal_label, 14, _theme_manifest.get_color("danger"), false)
+	_apply_label_theme(_upgrade_title, 24, _theme_manifest.get_color("ink"), true)
+	_upgrade_overlay.visible = false
+	_hover_card.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_hover_card.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_minimap_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_pixel_display.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_action_panel.custom_minimum_size = Vector2(0, 92)
+
+
+func _apply_panel_headings() -> void:
+	var heading_paths := [
+		$Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox/Heading,
+		$Margin/Root/Top/RightRailScroll/RightRail/LogPanel/MarginBox/LogBox/Heading,
+		$Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel/MarginBox/StructuresBox/Heading,
+		$Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel/MarginBox/MiniMapBox/Heading,
+	]
+	for heading in heading_paths:
+		_apply_label_theme(heading, 13, _theme_manifest.get_color("paper"), true)
+
+
+func _apply_label_theme(label: Label, size: int, color: Color, display_font: bool) -> void:
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_font_override("font", _painter.make_display_font(size) if display_font else _painter.make_body_font(size))
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _build_pressure_bar() -> void:
+	for child in _pressure_bar.get_children():
+		child.queue_free()
+	for _index in range(10):
+		var segment := ColorRect.new()
+		segment.custom_minimum_size = Vector2(18, 12)
+		segment.color = _theme_manifest.get_color("ink_soft")
+		segment.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_pressure_bar.add_child(segment)
+
+
+func _refresh_pressure_bar(current: int, maximum: int) -> void:
+	var fill_count := mini(_pressure_bar.get_child_count(), current)
+	for index in range(_pressure_bar.get_child_count()):
+		var segment := _pressure_bar.get_child(index) as ColorRect
+		if segment == null:
+			continue
+		var fill := index < fill_count
+		segment.color = _theme_manifest.get_color("danger").lightened(index * 0.02) if fill else _theme_manifest.get_color("ink_soft")
+	_pressure_bar.visible = maximum > 0
+
+
+func _refresh_backdrop_textures() -> void:
+	var safe_size := get_viewport_rect().size
+	if safe_size.x <= 0.0 or safe_size.y <= 0.0:
+		return
+	_backdrop.texture = _painter.make_backdrop_texture(Vector2i(safe_size))
+	_grime.texture = _painter.make_backdrop_texture(Vector2i(safe_size.x / 2.0, safe_size.y / 2.0))
+	_grime.modulate = Color(1, 1, 1, 0.22)
+
+
+func _refresh_legend(items: Array) -> void:
+	for child in _legend_list.get_children():
+		child.queue_free()
+	for item in items:
+		var row := HBoxContainer.new()
+		row.custom_minimum_size = Vector2(0, 42)
+		row.add_theme_constant_override("separation", 10)
+		_legend_list.add_child(row)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(34, 34)
+		icon.texture = _painter.make_icon_texture(String(item.get("icon_id", "")), 34, Color(item.get("accent_color", _theme_manifest.get_color("paper"))))
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
+		var label := Label.new()
+		label.text = String(item.get("label", "ROLE"))
+		_apply_label_theme(label, 16, _theme_manifest.get_color("paper"), false)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+
+
+func _refresh_actions(items: Array) -> void:
+	for child in _action_row.get_children():
+		child.queue_free()
+	_action_button_map.clear()
+	for item in items:
+		var button := Button.new()
+		var action_id := String(item.get("id", ""))
+		button.text = String(item.get("label", action_id.to_upper()))
+		button.disabled = not bool(item.get("enabled", true))
+		button.custom_minimum_size = Vector2(0, 68)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.icon = _painter.make_icon_texture(String(item.get("icon_id", action_id)), 22, Color(item.get("accent_color", _theme_manifest.get_color("paper"))))
+		_style_button(button, bool(item.get("selected", false)), bool(item.get("danger", false)))
+		button.pressed.connect(_on_action_button_pressed.bind(action_id))
+		_action_row.add_child(button)
+		_action_button_map[action_id] = button
+
+
+func _refresh_log(items: Array, status_line: String) -> void:
+	for child in _log_list.get_children():
+		child.queue_free()
+	if not status_line.is_empty():
+		var status := Label.new()
+		status.text = status_line
+		_apply_label_theme(status, 14, _theme_manifest.get_color("paper"), false)
+		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_log_list.add_child(status)
+	for item in items:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_log_list.add_child(row)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.texture = _painter.make_icon_texture(String(item.get("icon_id", "")), 18, Color(item.get("accent_color", _theme_manifest.get_color("paper"))))
+		row.add_child(icon)
+		var label := Label.new()
+		label.text = String(item.get("text", ""))
+		_apply_label_theme(label, 13, _theme_manifest.get_color("muted"), false)
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+
+
+func _refresh_hover(card_data: Dictionary) -> void:
+	if card_data.is_empty():
+		_hover_state_label.text = "INSPECT"
+		_hover_title_label.text = "Hover a tile"
+		_hover_body_label.text = "Move over a card to inspect its occupant and state."
+		_next_reveal_label.text = "NEXT REVEAL UNKNOWN"
+		_hover_card.texture = _painter.make_role_card_texture("guide", {"is_hidden": true, "is_previewed": false}, 256, 1)
+		return
+	var icon_id := String(card_data.get("icon_id", "guide"))
+	var accent := Color(card_data.get("accent_color", _theme_manifest.get_color(icon_id)))
+	_hover_state_label.text = String(card_data.get("state_label", "TILE"))
+	_hover_title_label.text = String(card_data.get("title", "Tile"))
+	_hover_body_label.text = String(card_data.get("description", ""))
+	_next_reveal_label.text = String(card_data.get("detail_line", "RECENT INTEL"))
+	_hover_card.texture = _painter.make_role_card_texture(icon_id, {
+		"is_hidden": bool(card_data.get("is_hidden", false)),
+		"is_previewed": bool(card_data.get("is_previewed", false)),
+		"is_target": bool(card_data.get("is_target", false)),
+		"is_selected_target": bool(card_data.get("is_selected_target", false)),
+	}, 256, 2)
+	_hover_state_label.add_theme_color_override("font_color", accent)
+
+
+func _build_structure_cards() -> void:
+	for child in _structure_grid.get_children():
+		child.queue_free()
+	var ids := ["conduit", "gate", "anchor_node", "hub"]
+	for structure_id in ids:
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size = Vector2(96, 96)
+		panel.add_theme_stylebox_override("panel", _painter.make_panel_style("paper_soft", _theme_manifest.get_color(structure_id)))
+		_structure_grid.add_child(panel)
+		var margin := MarginContainer.new()
+		margin.add_theme_constant_override("margin_left", 12)
+		margin.add_theme_constant_override("margin_top", 10)
+		margin.add_theme_constant_override("margin_right", 12)
+		margin.add_theme_constant_override("margin_bottom", 10)
+		panel.add_child(margin)
+		var box := VBoxContainer.new()
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		box.add_theme_constant_override("separation", 8)
+		margin.add_child(box)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(0, 56)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = _painter.make_icon_texture(structure_id, 52, _theme_manifest.get_color(structure_id), true)
+		box.add_child(icon)
+		var label := Label.new()
+		label.text = String(_theme_manifest.structure_labels.get(structure_id, structure_id.to_upper()))
+		_apply_label_theme(label, 12, _theme_manifest.get_color("paper"), true)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(label)
+		panel.set_meta("structure_id", structure_id)
+
+
+func _refresh_structures(items: Array) -> void:
+	for child in _structure_grid.get_children():
+		var panel := child as PanelContainer
+		if panel == null:
+			continue
+		var structure_id := String(panel.get_meta("structure_id", ""))
+		var item := {}
+		for candidate in items:
+			if String(candidate.get("id", "")) == structure_id:
+				item = candidate
+				break
+		panel.modulate = Color(1, 1, 1, 1.0 if not item.is_empty() else 0.7)
+
+
+func _refresh_minimap(data: Dictionary) -> void:
+	_minimap_texture.texture = _painter.make_minimap_texture(data, Vector2i(230, 230))
+
+
+func _build_upgrade_buttons() -> void:
+	for _index in range(3):
+		var button := Button.new()
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.custom_minimum_size = Vector2(420, 62)
+		button.pressed.connect(_on_upgrade_pressed.bind(button))
+		_upgrade_buttons_box.add_child(button)
+		_upgrade_buttons.append(button)
+
+
+func _refresh_upgrade_overlay(items: Array) -> void:
+	_upgrade_overlay.visible = not items.is_empty()
+	for index in range(_upgrade_buttons.size()):
+		var button := _upgrade_buttons[index]
+		if index >= items.size():
+			button.visible = false
+			continue
+		var item: Dictionary = items[index]
+		button.visible = true
+		button.text = "%s\n%s" % [String(item.get("name", "")), String(item.get("description", ""))]
+		button.set_meta("upgrade_id", String(item.get("id", "")))
+		button.icon = _painter.make_icon_texture(String(item.get("icon_id", "flip_again")), 20, Color(item.get("accent_color", _theme_manifest.get_color("highlight"))))
+		_style_button(button, false, false)
+
+
+func _style_button(button: BaseButton, selected: bool, danger: bool) -> void:
+	var normal: StyleBoxTexture = _painter.make_button_style(selected, danger, button.disabled)
+	var hover: StyleBoxTexture = _painter.make_panel_style("selected_button" if selected else ("danger_button" if danger else "paper_soft"))
+	var disabled: StyleBoxTexture = _painter.make_button_style(selected, danger, true)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.add_theme_stylebox_override("disabled", disabled)
+	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_font_override("font", _painter.make_display_font(18))
+	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_color_override("font_color", _theme_manifest.get_color("paper") if not danger else _theme_manifest.get_color("danger"))
+	button.add_theme_color_override("font_disabled_color", _theme_manifest.get_color("muted"))
+	button.add_theme_color_override("font_hover_color", _theme_manifest.get_color("paper"))
+	button.add_theme_color_override("font_pressed_color", _theme_manifest.get_color("paper"))
+	button.add_theme_constant_override("h_separation", 10)
+
+
+func _on_action_button_pressed(action_id: String) -> void:
+	if action_id == "reset":
+		emit_signal("reset_requested")
+		return
+	emit_signal("action_requested", action_id)
+
+
+func _on_upgrade_pressed(button: Button) -> void:
+	var upgrade_id := String(button.get_meta("upgrade_id", ""))
+	if upgrade_id.is_empty():
+		return
+	emit_signal("upgrade_requested", upgrade_id)

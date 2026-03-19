@@ -5,6 +5,8 @@ signal state_changed
 signal hovered_tile_changed
 
 const MazeGameRef = preload("res://scripts/maze_game.gd")
+const InkPainterRef = preload("res://scripts/ink_painter.gd")
+const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
 
 @export_range(3, 10, 1) var grid_width: int = 7
 @export_range(3, 10, 1) var grid_height: int = 7
@@ -22,7 +24,9 @@ var _resolving_turn: bool = false
 var _selected_targets: Array[Vector2i] = []
 var _preview_markers: Array = []
 var _player_move_tween: Tween
-var _player_base_y: float = 0.42
+var _player_base_y: float = 0.30
+var _theme_manifest = ThemeManifestRef
+var _painter = InkPainterRef.new(_theme_manifest)
 
 @onready var _tiles_root: Node3D = $Tiles
 @onready var _board_base: MeshInstance3D = $BoardBase
@@ -121,7 +125,13 @@ func _resolve_visual_report(report: Dictionary) -> void:
 
 
 func get_hud_state() -> Dictionary:
-	return _game.get_hud_state() if _game != null else {}
+	if _game == null:
+		return {}
+	var hud: Dictionary = _game.get_hud_state()
+	hud["hover_card"] = get_hovered_tile_details()
+	hud["action_items"] = _get_action_items()
+	hud["upgrade_items"] = get_upgrade_offer_data()
+	return hud
 
 
 func get_hovered_tile_details() -> Dictionary:
@@ -135,15 +145,20 @@ func get_hovered_tile_details() -> Dictionary:
 	var role_definition = _game.get_role_definition(cell.role_id) if is_known else null
 	var title := "Hidden Tile"
 	var description := "Flip this tile to reveal who is here."
-	var icon_id := ""
+	var icon_id := "guide"
+	var accent_color := Color8(171, 152, 130)
 	if role_definition != null:
 		title = String(role_definition.display_name)
 		description = String(role_definition.description)
 		icon_id = String(role_definition.icon_id)
+		accent_color = role_definition.accent_color
 	elif cell.previewed:
 		title = _game.get_role_name(cell.role_id)
 		description = "Peek revealed this role."
 		icon_id = String(cell.role_id)
+		var preview_role = _game.get_role_definition(cell.role_id)
+		if preview_role != null:
+			accent_color = preview_role.accent_color
 
 	var state_label := "Hidden"
 	if cell.previewed and cell.hidden:
@@ -157,9 +172,13 @@ func get_hovered_tile_details() -> Dictionary:
 		"description": description,
 		"state_label": state_label,
 		"icon_id": icon_id,
+		"accent_color": accent_color,
 		"show_front": is_known,
 		"is_hidden": cell.hidden,
 		"is_previewed": cell.previewed,
+		"is_target": _selected_targets.has(cell.grid_position),
+		"is_selected_target": _game.selected_action_id != "flip" and _selected_targets.has(cell.grid_position),
+		"detail_line": "TRACE %s" % [cell.grid_position],
 	}
 
 
@@ -226,6 +245,12 @@ func _sync_board_visuals(update_player_marker: bool = true) -> void:
 	if _game == null:
 		return
 	_selected_targets = _game.get_valid_targets_for_action(_game.selected_action_id)
+	var preview_lookup := {}
+	for preview in _game.get_preview_intents():
+		var from_pos: Vector2i = preview.get("from", Vector2i.ZERO)
+		if not preview_lookup.has(from_pos):
+			preview_lookup[from_pos] = []
+		preview_lookup[from_pos].append(preview)
 	for pos in _tiles_by_pos.keys():
 		var tile = _tiles_by_pos[pos]
 		var cell = _game.get_cell(pos)
@@ -233,18 +258,55 @@ func _sync_board_visuals(update_player_marker: bool = true) -> void:
 			continue
 		var role_definition = _game.get_role_definition(cell.role_id)
 		var icon_id: String = role_definition.icon_id if role_definition != null else "guide"
+		var is_target := _selected_targets.has(pos)
+		var is_selected_target: bool = _game.selected_action_id != "flip" and is_target
+		var selection_state := "idle"
+		if is_selected_target:
+			selection_state = "selected"
+		elif is_target:
+			selection_state = "target"
+		elif cell.previewed:
+			selection_state = "previewed"
 		tile.set_visual_state({
 			"grid_position": pos,
 			"icon_id": icon_id,
 			"is_flipped": not cell.hidden,
-			"is_target": _selected_targets.has(pos),
+			"is_target": is_target,
 			"is_previewed": cell.previewed,
-			"is_selected_target": _game.selected_action_id != "flip" and _selected_targets.has(pos),
+			"is_selected_target": is_selected_target,
 			"is_edge": _is_edge(pos),
+			"surface_variant": int(abs(pos.x * 13 + pos.y * 7)) % 4,
+			"selection_state": selection_state,
+			"overlay_glyphs": [icon_id] if not cell.hidden else [],
+			"flow_preview": preview_lookup.get(pos, []),
+			"is_player_tile_adjacent": _game.player.position.distance_to(pos) == 1,
 		})
 	_update_preview_markers()
 	if update_player_marker:
 		_update_player_marker_position(true)
+
+
+func _get_action_items() -> Array[Dictionary]:
+	var items: Array[Dictionary] = [{
+		"id": "flip",
+		"label": "REVEAL",
+		"selected": _game.selected_action_id == "flip",
+		"enabled": true,
+		"icon_id": "flip",
+		"accent_color": Color8(227, 189, 120),
+	}]
+	for item in _game.get_action_buttons():
+		items.append(item)
+	items.append({
+		"id": "reset",
+		"label": "RESET RUN",
+		"selected": false,
+		"enabled": true,
+		"icon_id": "reset",
+		"accent_color": Color8(230, 80, 68),
+		"danger": true,
+	})
+	return items
 
 
 func _animate_reveals(reveals: Array) -> void:
@@ -280,17 +342,17 @@ func _ensure_helper_nodes() -> void:
 	if get_node_or_null("PlayerMarker") == null:
 		var marker := MeshInstance3D.new()
 		marker.name = "PlayerMarker"
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = 0.18
-		mesh.bottom_radius = 0.22
-		mesh.height = 0.36
+		var mesh := QuadMesh.new()
+		mesh.size = Vector2(0.86, 0.96)
 		marker.mesh = mesh
 		var material := StandardMaterial3D.new()
-		material.albedo_color = Color8(236, 224, 205)
-		material.emission_enabled = true
-		material.emission = Color8(230, 106, 82)
-		material.emission_energy_multiplier = 0.28
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		material.albedo_color = Color.WHITE
+		material.albedo_texture = _painter.make_player_token_texture(256)
 		marker.set_surface_override_material(0, material)
+		marker.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 		add_child(marker)
 	if get_node_or_null("PreviewRoot") == null:
 		var preview_root := Node3D.new()
@@ -330,20 +392,26 @@ func _update_preview_markers() -> void:
 		if not _game.is_in_bounds(to_pos):
 			continue
 		var marker := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(0.12, 0.06, 0.58)
+		var mesh := QuadMesh.new()
+		mesh.size = Vector2(0.70, 0.20)
 		marker.mesh = mesh
 		var material := StandardMaterial3D.new()
 		var is_push := String(preview.get("kind", "")) == "push"
-		material.albedo_color = Color8(220, 104, 74) if is_push else Color8(225, 176, 82)
-		material.emission_enabled = true
-		material.emission = material.albedo_color
-		material.emission_energy_multiplier = 0.2
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		material.albedo_color = Color.WHITE
+		material.albedo_texture = _painter.make_icon_texture(
+			"pusher" if is_push else "puller",
+			96,
+			_theme_manifest.get_color("danger") if is_push else _theme_manifest.get_color("highlight")
+		)
 		marker.set_surface_override_material(0, material)
 		var midpoint := (_grid_to_world(from_pos, 0.42) + _grid_to_world(to_pos, 0.42)) * 0.5
 		marker.position = midpoint
 		var direction := (_grid_to_world(to_pos, 0.42) - _grid_to_world(from_pos, 0.42)).normalized()
 		marker.look_at(midpoint + direction, Vector3.UP)
+		marker.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90.0))
 		_preview_root().add_child(marker)
 		_preview_markers.append(marker)
 
@@ -352,18 +420,18 @@ func _update_board_base() -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(
 		maxf(grid_width * tile_spacing, tile_size) + board_margin,
-		0.24,
+		0.18,
 		maxf(grid_height * tile_spacing, tile_size) + board_margin
 	)
 	_board_base.mesh = mesh
 	_board_base.position = Vector3(0.0, 0.0, 0.0)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color8(58, 50, 43)
-	material.roughness = 0.94
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	material.albedo_color = _theme_manifest.get_color("board")
+	material.roughness = 1.0
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	material.emission_enabled = true
-	material.emission = Color8(91, 75, 61)
-	material.emission_energy_multiplier = 0.06
+	material.emission = _theme_manifest.get_color("ink_soft")
+	material.emission_energy_multiplier = 0.04
 	_board_base.set_surface_override_material(0, material)
 
 

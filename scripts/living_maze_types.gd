@@ -93,6 +93,11 @@ class RoleDefinition:
 	var id: String = ""
 	var display_name: String = ""
 	var icon_id: String = ""
+	var portrait_asset_id: String = ""
+	var legend_icon_id: String = ""
+	var log_icon_id: String = ""
+	var silhouette_asset_id: String = ""
+	var accent_color: Color = Color.WHITE
 	var description: String = ""
 	var timing: String = ""
 	var weight: int = 0
@@ -107,5 +112,7 @@ class UpgradeDefinition:
 	var id: String = ""
 	var display_name: String = ""
 	var description: String = ""
+	var icon_id: String = ""
+	var accent_color: Color = Color.WHITE
 	var target_mode: String = "cell"
 	var targeting_rule: String = ""

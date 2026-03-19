@@ -1,0 +1,373 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/game_shell.gd" id="1"]
+
+[node name="GameShell" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Backdrop" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="Grime" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="Top" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="LeftRailScroll" type="ScrollContainer" parent="Margin/Root/Top"]
+layout_mode = 2
+custom_minimum_size = Vector2(264, 0)
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="LeftRail" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="TitlePanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="TitleBox" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox"]
+layout_mode = 2
+text = "LIVING\nMAZE"
+
+[node name="Subtitle" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox"]
+layout_mode = 2
+text = "Handmarked Escape Circuit"
+
+[node name="StatusPanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="StatusBox" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Round" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+text = "ROUND 01"
+
+[node name="PressureRow" type="HBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PressureLabel" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "PRESSURE"
+
+[node name="PressureValue" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureRow"]
+layout_mode = 2
+text = "0 / 10"
+
+[node name="PressureBar" type="HBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ObjectiveHeading" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+text = "OBJECTIVE"
+
+[node name="Objective" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+text = "Reach any edge to escape."
+
+[node name="StatusHeading" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+text = "FIELD NOTE"
+
+[node name="Status" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+text = "Flip a nearby tile."
+
+[node name="LegendPanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="LegendBox" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox"]
+layout_mode = 2
+text = "LEGEND"
+
+[node name="LegendScroll" type="ScrollContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="LegendList" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox/LegendScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="CenterColumn" type="VBoxContainer" parent="Margin/Root/Top"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="BoardPanel" type="PanelContainer" parent="Margin/Root/Top/CenterColumn"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="BoardHost" type="Control" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
+
+[node name="PixelDisplay" type="TextureRect" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+expand_mode = 1
+stretch_mode = 6
+
+[node name="UpgradeOverlay" type="PanelContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost"]
+visible = false
+custom_minimum_size = Vector2(460, 260)
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -130.0
+offset_right = 230.0
+offset_bottom = 130.0
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="UpgradeBox" type="VBoxContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="UpgradeTitle" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
+layout_mode = 2
+text = "Choose a route"
+
+[node name="UpgradeButtons" type="VBoxContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RightRailScroll" type="ScrollContainer" parent="Margin/Root/Top"]
+layout_mode = 2
+custom_minimum_size = Vector2(298, 0)
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RightRail" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="HoverPanel" type="PanelContainer" parent="Margin/Root/Top/RightRailScroll/RightRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="HoverBox" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HoverState" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox"]
+layout_mode = 2
+text = "INSPECT"
+
+[node name="HoverCard" type="TextureRect" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+
+[node name="HoverTitle" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox"]
+layout_mode = 2
+text = "Hover a tile"
+
+[node name="HoverBody" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox"]
+layout_mode = 2
+text = "Move over a card to inspect it."
+
+[node name="NextReveal" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox"]
+layout_mode = 2
+text = "NEXT REVEAL UNKNOWN"
+
+[node name="LogPanel" type="PanelContainer" parent="Margin/Root/Top/RightRailScroll/RightRail"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/LogPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="LogBox" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/LogPanel/MarginBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/LogPanel/MarginBox/LogBox"]
+layout_mode = 2
+text = "RECENT LOG"
+
+[node name="LogList" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/LogPanel/MarginBox/LogBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="StructuresPanel" type="PanelContainer" parent="Margin/Root/Top/RightRailScroll/RightRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="StructuresBox" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel/MarginBox/StructuresBox"]
+layout_mode = 2
+text = "STRUCTURES"
+
+[node name="StructureGrid" type="GridContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel/MarginBox/StructuresBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+
+[node name="MinimapPanel" type="PanelContainer" parent="Margin/Root/Top/RightRailScroll/RightRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="MiniMapBox" type="VBoxContainer" parent="Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel/MarginBox/MiniMapBox"]
+layout_mode = 2
+text = "GRID TRACE"
+
+[node name="MiniMapTexture" type="TextureRect" parent="Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel/MarginBox/MiniMapBox"]
+custom_minimum_size = Vector2(0, 164)
+layout_mode = 2
+
+[node name="Bottom" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="ActionDock" type="PanelContainer" parent="Margin/Root/Bottom"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Bottom/ActionDock"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="ActionRow" type="HBoxContainer" parent="Margin/Root/Bottom/ActionDock/MarginBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10

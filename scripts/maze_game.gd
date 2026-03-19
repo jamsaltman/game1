@@ -2,6 +2,7 @@ class_name MazeGame
 extends RefCounted
 
 const Types = preload("res://scripts/living_maze_types.gd")
+const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
 
 const INVALID_POS := Vector2i(-999, -999)
 const DIRECTIONS := [
@@ -28,6 +29,7 @@ var event_log: Array[String] = []
 var selected_action_id: String = "flip"
 var board_cleared: bool = false
 var turn_report: Dictionary = {}
+var _theme_manifest = ThemeManifestRef
 
 
 func _init(size: Vector2i = Vector2i(7, 7), seed: int = 0) -> void:
@@ -135,6 +137,8 @@ func get_action_buttons() -> Array[Dictionary]:
 			"label": "%s (%s)" % [get_upgrade_name(upgrade_id), _format_charge_label(upgrade_id)],
 			"selected": selected_action_id == upgrade_id,
 			"enabled": enabled,
+			"icon_id": String(upgrade_definitions[upgrade_id].icon_id),
+			"accent_color": upgrade_definitions[upgrade_id].accent_color,
 		})
 	return buttons
 
@@ -163,6 +167,8 @@ func get_upgrade_offer_data() -> Array[Dictionary]:
 			"id": definition.id,
 			"name": definition.display_name,
 			"description": definition.description,
+			"icon_id": definition.icon_id,
+			"accent_color": definition.accent_color,
 		})
 	return offers
 
@@ -273,6 +279,11 @@ func get_hud_state() -> Dictionary:
 		"score": run.score,
 		"phase": phase_label,
 		"status": status_text,
+		"title_text": _theme_manifest.title_text,
+		"subtitle_text": _theme_manifest.subtitle_text,
+		"objective_text": "Reach any edge to escape.",
+		"pressure_current": _get_pressure_value(),
+		"pressure_max": 10,
 		"last_role_name": role_name,
 		"last_role_description": role_description,
 		"failure_reason": failure_reason,
@@ -280,6 +291,10 @@ func get_hud_state() -> Dictionary:
 		"log_lines": lines,
 		"selected_action": selected_action_id,
 		"anchor_ready": bool(player.board_charges.get("anchor_ready", false)),
+		"legend_items": get_role_legend_data(),
+		"log_items": get_log_entries(lines),
+		"structure_items": get_structure_data(),
+		"minimap": get_minimap_data(),
 	}
 
 
@@ -334,11 +349,11 @@ func _build_role_definitions() -> void:
 
 func _build_upgrade_definitions() -> void:
 	upgrade_definitions.clear()
-	_add_upgrade("peek", "Peek", "Once per board, preview one adjacent hidden role.", "cell")
+	_add_upgrade("peek", "Observe", "Once per board, preview one adjacent hidden role.", "cell")
 	_add_upgrade("anchor", "Anchor", "Once per board, cancel the next forced move.", "instant")
 	_add_upgrade("step", "Step", "Once per board, move 1 tile onto a safe revealed tile.", "cell")
 	_add_upgrade("remote_flip", "Remote Flip", "Once per board, flip a hidden tile at orthogonal range 2.", "cell")
-	_add_upgrade("flip_again", "Flip Again", "Once per board, your first flip gives you a bonus extra flip.", "passive")
+	_add_upgrade("flip_again", "Second Sight", "Once per board, your first flip gives you a bonus extra flip.", "passive")
 
 
 func _generate_board() -> void:
@@ -834,6 +849,21 @@ func _refresh_status_text() -> void:
 		status_text += " Bypass ready."
 
 
+func _get_pressure_value() -> int:
+	var pressure := run.turn_index
+	if player.is_grabbed():
+		pressure += 2
+	if bool(player.board_charges.get("anchor_ready", false)):
+		pressure += 1
+	for pos in _get_adjacent_positions(player.position):
+		var cell = get_cell(pos)
+		if cell == null or cell.hidden:
+			continue
+		if cell.role_id in ["pusher", "puller", "killer", "grabber"]:
+			pressure += 1
+	return clampi(pressure, 0, 10)
+
+
 func _adjacent_revealed_roles(origin: Vector2i, role_id: String) -> Array[Vector2i]:
 	var positions: Array[Vector2i] = []
 	for pos in _get_adjacent_positions(origin):
@@ -921,6 +951,11 @@ func _add_role(id: String, name: String, icon_id: String, description: String, t
 	definition.id = id
 	definition.display_name = name
 	definition.icon_id = icon_id
+	definition.portrait_asset_id = icon_id
+	definition.legend_icon_id = icon_id
+	definition.log_icon_id = icon_id
+	definition.silhouette_asset_id = "%s_shadow" % icon_id
+	definition.accent_color = _theme_manifest.get_color(icon_id, Color.WHITE)
 	definition.description = description
 	definition.timing = timing
 	definition.weight = weight
@@ -934,8 +969,80 @@ func _add_upgrade(id: String, name: String, description: String, target_mode: St
 	definition.id = id
 	definition.display_name = name
 	definition.description = description
+	definition.icon_id = id
+	definition.accent_color = _theme_manifest.get_color(id, _theme_manifest.get_color("highlight"))
 	definition.target_mode = target_mode
 	upgrade_definitions[id] = definition
+
+
+func get_role_legend_data() -> Array[Dictionary]:
+	var items: Array[Dictionary] = []
+	for role_id in role_definitions.keys():
+		var definition: Types.RoleDefinition = role_definitions[role_id]
+		items.append({
+			"id": definition.id,
+			"label": definition.display_name.to_upper(),
+			"icon_id": definition.legend_icon_id,
+			"accent_color": definition.accent_color,
+		})
+	return items
+
+
+func get_log_entries(lines: Array = []) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	var source: Array = lines if not lines.is_empty() else event_log
+	for line in source:
+		var text := String(line)
+		var icon_id := "flip"
+		if text.contains("Push") or text.contains("shove"):
+			icon_id = "pusher"
+		elif text.contains("Pull") or text.contains("drag"):
+			icon_id = "puller"
+		elif text.contains("Blocker"):
+			icon_id = "blocker"
+		elif text.contains("Redirector"):
+			icon_id = "redirector"
+		elif text.contains("Grabber"):
+			icon_id = "grabber"
+		elif text.contains("Guide"):
+			icon_id = "guide"
+		elif text.contains("Smuggler"):
+			icon_id = "smuggler"
+		elif text.contains("killer") or text.contains("Killer"):
+			icon_id = "killer"
+		elif text.contains("Anchor"):
+			icon_id = "anchor"
+		entries.append({
+			"text": text,
+			"icon_id": icon_id,
+			"accent_color": _theme_manifest.get_color(icon_id, _theme_manifest.get_color("muted")),
+		})
+	return entries
+
+
+func get_structure_data() -> Array[Dictionary]:
+	return [
+		{"id": "conduit", "enabled": true},
+		{"id": "gate", "enabled": run.board_depth >= 2},
+		{"id": "anchor_node", "enabled": player.unlocked_upgrades.get("anchor", false) or bool(player.board_charges.get("anchor_ready", false))},
+		{"id": "hub", "enabled": run.score > 0 or run.awaiting_upgrade_choice},
+	]
+
+
+func get_minimap_data() -> Dictionary:
+	var cells_data: Array[Dictionary] = []
+	for cell in cells:
+		cells_data.append({
+			"position": cell.grid_position,
+			"role_id": cell.role_id,
+			"is_hidden": cell.hidden,
+			"is_edge": _is_edge(cell.grid_position),
+			"is_player": cell.grid_position == player.position,
+		})
+	return {
+		"grid_size": grid_size,
+		"cells": cells_data,
+	}
 
 
 func get_role_name(role_id: String) -> String:
