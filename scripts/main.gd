@@ -1,9 +1,9 @@
 extends Control
 
-const TARGET_INTERNAL_HEIGHT := 270.0
+const TARGET_INTERNAL_HEIGHT := 360.0
 const PixelFilterShaderRef = preload("res://shaders/pixel_filter.gdshader")
 
-var _pixel_filter_enabled: bool = true
+var _pixel_filter_enabled: bool = false
 
 @onready var _game_viewport: SubViewport = $GameViewport
 @onready var _board = $GameViewport/World/Board
@@ -88,7 +88,8 @@ func _resize_display() -> void:
 		maxi(1, int(round(host_size.y)))
 	)
 	if _pixel_filter_enabled:
-		render_scale = maxf(host_size.y / TARGET_INTERNAL_HEIGHT, 1.0)
+		var desired_scale := host_size.y / TARGET_INTERNAL_HEIGHT
+		render_scale = maxf(round(desired_scale), 1.0)
 		viewport_size = Vector2i(
 			maxi(1, int(round(host_size.x / render_scale))),
 			maxi(1, int(round(host_size.y / render_scale)))
