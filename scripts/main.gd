@@ -15,7 +15,11 @@ var _hover_state_label: Label
 var _hover_icon: TextureRect
 var _hover_title_label: Label
 var _hover_body_label: Label
+var _settings_button: Button
+var _settings_panel: PanelContainer
+var _pixel_filter_toggle: CheckButton
 var _icon_library = IconLibraryRef.new()
+var _pixel_filter_enabled: bool = true
 
 @onready var _game_viewport: SubViewport = $GameViewport
 @onready var _pixel_display: TextureRect = $UI/PixelDisplay
@@ -31,6 +35,7 @@ func _ready() -> void:
 	_bind_game_surface_input()
 	get_viewport().size_changed.connect(_resize_display)
 	_build_overlay()
+	_apply_pixel_filter_state()
 	_board.state_changed.connect(_refresh_overlay)
 	_board.hovered_tile_changed.connect(_refresh_hover_card)
 	_resize_display()
@@ -77,6 +82,7 @@ func _resize_display() -> void:
 	if filter_material != null:
 		filter_material.set_shader_parameter("source_size", Vector2(viewport_size))
 		filter_material.set_shader_parameter("display_scale", render_scale)
+		filter_material.set_shader_parameter("filter_enabled", _pixel_filter_enabled)
 
 	_board.fit_camera(_camera, window_size)
 
@@ -128,6 +134,43 @@ func _build_overlay() -> void:
 
 	_hover_body_label = _make_label("Move the cursor over a tile to inspect its face and effect.")
 	hover_box.add_child(_hover_body_label)
+
+	_settings_button = Button.new()
+	_settings_button.text = "Settings"
+	_settings_button.anchor_left = 1.0
+	_settings_button.anchor_right = 1.0
+	_settings_button.offset_left = -118
+	_settings_button.offset_right = -18
+	_settings_button.offset_top = 18
+	_settings_button.offset_bottom = 50
+	_settings_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_settings_button.pressed.connect(_toggle_settings_panel)
+	_ui_root.add_child(_settings_button)
+
+	_settings_panel = PanelContainer.new()
+	_settings_panel.visible = false
+	_settings_panel.anchor_left = 1.0
+	_settings_panel.anchor_right = 1.0
+	_settings_panel.offset_left = -258
+	_settings_panel.offset_right = -18
+	_settings_panel.offset_top = 58
+	_settings_panel.offset_bottom = 132
+	_settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_ui_root.add_child(_settings_panel)
+
+	var settings_box := VBoxContainer.new()
+	settings_box.add_theme_constant_override("separation", 8)
+	_settings_panel.add_child(settings_box)
+
+	var settings_title := _make_label("Display")
+	settings_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	settings_box.add_child(settings_title)
+
+	_pixel_filter_toggle = CheckButton.new()
+	_pixel_filter_toggle.text = "Pixel filter"
+	_pixel_filter_toggle.button_pressed = _pixel_filter_enabled
+	_pixel_filter_toggle.toggled.connect(_on_pixel_filter_toggled)
+	settings_box.add_child(_pixel_filter_toggle)
 
 	_action_bar = HBoxContainer.new()
 	_action_bar.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -258,6 +301,23 @@ func _on_upgrade_pressed(button: Button) -> void:
 	if upgrade_id.is_empty():
 		return
 	_board.choose_upgrade(upgrade_id)
+
+
+func _toggle_settings_panel() -> void:
+	_settings_panel.visible = not _settings_panel.visible
+
+
+func _on_pixel_filter_toggled(enabled: bool) -> void:
+	_pixel_filter_enabled = enabled
+	_apply_pixel_filter_state()
+
+
+func _apply_pixel_filter_state() -> void:
+	var filter_material := _pixel_display.material as ShaderMaterial
+	if filter_material != null:
+		filter_material.set_shader_parameter("filter_enabled", _pixel_filter_enabled)
+	if _pixel_filter_toggle != null:
+		_pixel_filter_toggle.button_pressed = _pixel_filter_enabled
 
 
 func _display_to_viewport_pos(local_position: Vector2) -> Vector2:

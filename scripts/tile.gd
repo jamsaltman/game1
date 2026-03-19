@@ -14,7 +14,7 @@ const IconLibraryRef = preload("res://scripts/icon_library.gd")
 @export var tile_width: float = 1.0
 @export var tile_depth: float = 1.0
 @export var tile_height: float = 0.24
-@export var face_texture_size: int = 18
+@export var face_texture_size: int = 32
 @export var flip_lift_height: float = 0.32
 
 var grid_position: Vector2i = Vector2i.ZERO
