@@ -2,6 +2,7 @@ class_name Board
 extends Node3D
 
 signal state_changed
+signal hovered_tile_changed
 
 const MazeGameRef = preload("res://scripts/maze_game.gd")
 
@@ -79,6 +80,7 @@ func update_hover(screen_pos: Vector2, active: bool) -> void:
 	_hovered_tile = next_tile
 	if is_instance_valid(_hovered_tile):
 		_hovered_tile.set_hovered(true)
+	emit_signal("hovered_tile_changed")
 
 
 func click_tile(screen_pos: Vector2) -> void:
@@ -122,6 +124,45 @@ func get_hud_state() -> Dictionary:
 	return _game.get_hud_state() if _game != null else {}
 
 
+func get_hovered_tile_details() -> Dictionary:
+	if _game == null or not is_instance_valid(_hovered_tile):
+		return {}
+	var cell = _game.get_cell(_hovered_tile.grid_position)
+	if cell == null:
+		return {}
+
+	var is_known: bool = not cell.hidden or cell.previewed
+	var role_definition = _game.get_role_definition(cell.role_id) if is_known else null
+	var title := "Hidden Tile"
+	var description := "Flip this tile to reveal who is here."
+	var icon_id := ""
+	if role_definition != null:
+		title = String(role_definition.display_name)
+		description = String(role_definition.description)
+		icon_id = String(role_definition.icon_id)
+	elif cell.previewed:
+		title = _game.get_role_name(cell.role_id)
+		description = "Peek revealed this role."
+		icon_id = String(cell.role_id)
+
+	var state_label := "Hidden"
+	if cell.previewed and cell.hidden:
+		state_label = "Peeked"
+	elif not cell.hidden:
+		state_label = "Revealed"
+
+	return {
+		"grid_position": cell.grid_position,
+		"title": title,
+		"description": description,
+		"state_label": state_label,
+		"icon_id": icon_id,
+		"show_front": is_known,
+		"is_hidden": cell.hidden,
+		"is_previewed": cell.previewed,
+	}
+
+
 func get_action_buttons() -> Array:
 	return _game.get_action_buttons() if _game != null else []
 
@@ -155,6 +196,7 @@ func _rebuild_tiles() -> void:
 	if is_instance_valid(_hovered_tile):
 		_hovered_tile.set_hovered(false)
 	_hovered_tile = null
+	emit_signal("hovered_tile_changed")
 	for child in _tiles_root.get_children():
 		_tiles_root.remove_child(child)
 		child.queue_free()

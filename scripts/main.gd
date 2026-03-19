@@ -1,6 +1,7 @@
 extends Control
 
 const TARGET_INTERNAL_HEIGHT := 270.0
+const IconLibraryRef = preload("res://scripts/icon_library.gd")
 
 var _depth_label: Label
 var _score_label: Label
@@ -9,6 +10,12 @@ var _action_bar: HBoxContainer
 var _upgrade_overlay: PanelContainer
 var _upgrade_title: Label
 var _upgrade_buttons: Array[Button] = []
+var _hover_panel: PanelContainer
+var _hover_state_label: Label
+var _hover_icon: TextureRect
+var _hover_title_label: Label
+var _hover_body_label: Label
+var _icon_library = IconLibraryRef.new()
 
 @onready var _game_viewport: SubViewport = $GameViewport
 @onready var _pixel_display: TextureRect = $UI/PixelDisplay
@@ -25,8 +32,10 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_resize_display)
 	_build_overlay()
 	_board.state_changed.connect(_refresh_overlay)
+	_board.hovered_tile_changed.connect(_refresh_hover_card)
 	_resize_display()
 	_refresh_overlay()
+	_refresh_hover_card()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -95,6 +104,31 @@ func _build_overlay() -> void:
 	hud_box.add_child(_score_label)
 	hud_box.add_child(_hint_label)
 
+	_hover_panel = PanelContainer.new()
+	_hover_panel.custom_minimum_size = Vector2(220, 0)
+	_hover_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	hud_box.add_child(_hover_panel)
+
+	var hover_box := VBoxContainer.new()
+	hover_box.add_theme_constant_override("separation", 6)
+	_hover_panel.add_child(hover_box)
+
+	_hover_state_label = _make_label("Inspect")
+	hover_box.add_child(_hover_state_label)
+
+	_hover_icon = TextureRect.new()
+	_hover_icon.custom_minimum_size = Vector2(72, 72)
+	_hover_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_hover_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hover_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	hover_box.add_child(_hover_icon)
+
+	_hover_title_label = _make_label("Hover a tile")
+	hover_box.add_child(_hover_title_label)
+
+	_hover_body_label = _make_label("Move the cursor over a tile to inspect its face and effect.")
+	hover_box.add_child(_hover_body_label)
+
 	_action_bar = HBoxContainer.new()
 	_action_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	_action_bar.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -160,6 +194,24 @@ func _refresh_overlay() -> void:
 
 	_refresh_action_buttons()
 	_refresh_upgrade_overlay()
+	_refresh_hover_card()
+
+
+func _refresh_hover_card() -> void:
+	var hover_data: Dictionary = _board.get_hovered_tile_details()
+	if hover_data.is_empty():
+		_hover_state_label.text = "Inspect"
+		_hover_title_label.text = "Hover a tile"
+		_hover_body_label.text = "Move the cursor over a tile to inspect its face and effect."
+		_hover_icon.texture = _icon_library.make_face_texture("guide", false, true, 72)
+		return
+
+	var icon_id := String(hover_data.get("icon_id", "guide"))
+	var show_front := bool(hover_data.get("show_front", false))
+	_hover_state_label.text = String(hover_data.get("state_label", "Tile"))
+	_hover_title_label.text = String(hover_data.get("title", "Tile"))
+	_hover_body_label.text = String(hover_data.get("description", ""))
+	_hover_icon.texture = _icon_library.make_face_texture(icon_id, show_front, true, 72)
 
 
 func _refresh_action_buttons() -> void:

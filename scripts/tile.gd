@@ -8,6 +8,9 @@ const IconLibraryRef = preload("res://scripts/icon_library.gd")
 @export_range(0.05, 1.2, 0.01) var flip_duration: float = 0.3
 @export_range(0.02, 1.0, 0.01) var flip_squash_depth: float = 0.08
 @export var hover_enabled: bool = true
+@export_range(0.0, 0.4, 0.01) var hover_lift_height: float = 0.12
+@export_range(1.0, 1.3, 0.01) var hover_scale_multiplier: float = 1.08
+@export_range(1.0, 1.3, 0.01) var hover_face_scale_multiplier: float = 1.12
 @export var tile_width: float = 1.0
 @export var tile_depth: float = 1.0
 @export var tile_height: float = 0.24
@@ -58,8 +61,7 @@ func set_hovered(value: bool) -> void:
 	if _hovered == next_hover:
 		return
 	_hovered = next_hover
-	_visual_root.position.y = 0.08 if _hovered else 0.0
-	_visual_root.scale = Vector3.ONE * (1.04 if _hovered else 1.0)
+	_apply_hover_transform()
 	_update_materials()
 
 
@@ -139,8 +141,7 @@ func _finish_feedback() -> void:
 		_visual_root.position = Vector3.ZERO
 		_visual_root.scale = Vector3.ONE
 	else:
-		_visual_root.position = Vector3(0.0, 0.08, 0.0)
-		_visual_root.scale = Vector3.ONE * 1.04
+		_apply_hover_transform()
 	_feedback_strength = 0.0
 	_update_materials()
 
@@ -148,6 +149,14 @@ func _finish_feedback() -> void:
 func _swap_visible_face() -> void:
 	_back_face.visible = false
 	_front_face.visible = true
+
+
+func _apply_hover_transform() -> void:
+	_visual_root.position.y = hover_lift_height if _hovered else 0.0
+	_visual_root.scale = Vector3.ONE * (hover_scale_multiplier if _hovered else 1.0)
+	var face_scale := hover_face_scale_multiplier if _hovered else 1.0
+	_back_face.scale = Vector3.ONE * face_scale
+	_front_face.scale = Vector3.ONE * face_scale
 
 
 func _build_geometry() -> void:
@@ -174,6 +183,7 @@ func _create_materials() -> void:
 	_base_material = StandardMaterial3D.new()
 	_base_material.roughness = 0.92
 	_base_material.metallic = 0.03
+	_base_material.emission_enabled = true
 	_base_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	_back_material = StandardMaterial3D.new()
@@ -181,6 +191,7 @@ func _create_materials() -> void:
 	_back_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_back_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_back_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_back_material.emission_enabled = true
 	_back_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	_front_material = StandardMaterial3D.new()
@@ -188,6 +199,7 @@ func _create_materials() -> void:
 	_front_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_front_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_front_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_front_material.emission_enabled = true
 	_front_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	_body_mesh.set_surface_override_material(0, _base_material)
@@ -220,8 +232,14 @@ func _update_materials() -> void:
 		base_color = base_color.lerp(_feedback_color, _feedback_strength)
 
 	_base_material.albedo_color = base_color
+	_base_material.emission = base_color.lightened(0.28)
+	_base_material.emission_energy_multiplier = 0.18 if not _hovered else 0.38
 	_back_material.albedo_color = Color.WHITE
 	_front_material.albedo_color = Color.WHITE
+	_back_material.emission = Color8(255, 245, 210) if _hovered else Color8(0, 0, 0, 0)
+	_front_material.emission = Color8(255, 245, 210) if _hovered else Color8(0, 0, 0, 0)
+	_back_material.emission_energy_multiplier = 0.35 if _hovered else 0.0
+	_front_material.emission_energy_multiplier = 0.35 if _hovered else 0.0
 	_back_material.albedo_texture = _icon_library.make_face_texture(icon_id, false, _hovered, face_texture_size)
 	_front_material.albedo_texture = _icon_library.make_face_texture(icon_id, true, _hovered, face_texture_size)
 
