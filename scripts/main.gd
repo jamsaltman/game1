@@ -26,9 +26,11 @@ func _ready() -> void:
 	_shell.action_requested.connect(_on_action_requested)
 	_shell.upgrade_requested.connect(_on_upgrade_requested)
 	_shell.reset_requested.connect(_on_reset_requested)
+	_shell.pixel_filter_toggled.connect(_on_pixel_filter_toggled)
 	_board.state_changed.connect(_refresh_shell)
 	_board.hovered_tile_changed.connect(_refresh_hover_only)
 	call_deferred("_resize_display")
+	_shell.set_pixel_filter_enabled(_pixel_filter_enabled)
 	_refresh_shell()
 
 
@@ -52,6 +54,11 @@ func _on_upgrade_requested(upgrade_id: String) -> void:
 
 func _on_reset_requested() -> void:
 	_board.reset_board()
+
+
+func _on_pixel_filter_toggled(enabled: bool) -> void:
+	_pixel_filter_enabled = enabled
+	_resize_display()
 
 
 func _on_pixel_display_gui_input(event: InputEvent) -> void:

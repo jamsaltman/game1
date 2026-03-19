@@ -6,6 +6,7 @@ const ManifestRef = preload("res://scripts/ink_theme_manifest.gd")
 var manifest = null
 var _texture_cache: Dictionary = {}
 var _style_cache: Dictionary = {}
+var _portrait_cache: Dictionary = {}
 
 
 func _init(theme_manifest = null) -> void:
@@ -160,7 +161,8 @@ func make_player_token_texture(size: int = 256) -> Texture2D:
 	image.fill(Color(0, 0, 0, 0))
 	_draw_irregular_card(image, Rect2i(16, 20, size - 32, size - 40), manifest.get_color("paper"), manifest.get_color("ink"), manifest.get_color("danger"), 211)
 	var rect := Rect2i(size * 0.22, size * 0.18, size * 0.56, size * 0.66)
-	_draw_hooded_figure(image, rect, manifest.get_color("danger"), true, 211)
+	if not _draw_portrait_asset(image, rect, manifest.get_player_portrait_asset_id()):
+		_draw_hooded_figure(image, rect, manifest.get_color("danger"), true, 211)
 	_draw_selection_frame(image, size, manifest.get_color("danger"))
 	var texture := ImageTexture.create_from_image(image)
 	_texture_cache[key] = texture
@@ -264,33 +266,74 @@ func _draw_portrait_card(image: Image, rect: Rect2i, role_id: String, accent: Co
 	var top_band := Rect2i(rect.position.x, rect.position.y, rect.size.x, rect.size.y / 4)
 	_fill_rect(image, top_band, accent.darkened(0.10))
 	var portrait_rect := Rect2i(rect.position.x + 12, rect.position.y + 18, rect.size.x - 24, rect.size.y - 54)
-	match role_id:
-		"pusher":
-			_draw_hooded_figure(image, portrait_rect, accent, true, seed)
-			_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 6), Vector2.RIGHT, manifest.get_color("ink"))
-		"puller":
-			_draw_hat_figure(image, portrait_rect, accent, seed)
-			_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 5, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 6), Vector2.LEFT, manifest.get_color("ink"))
-		"blocker":
-			_draw_guard_figure(image, portrait_rect, accent, seed)
-			_draw_barred_gate(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), manifest.get_color("ink"))
-		"redirector":
-			_draw_scout_figure(image, portrait_rect, accent, seed)
-			_draw_bent_arrow(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 4), accent)
-		"grabber":
-			_draw_coat_figure(image, portrait_rect, accent, seed)
-			_draw_hook(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent.darkened(0.2))
-		"guide":
-			_draw_scarf_figure(image, portrait_rect, accent, seed)
-			_draw_eye(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 6), manifest.get_color("ink"))
-		"smuggler":
-			_draw_pack_figure(image, portrait_rect, accent, seed)
-			_draw_smuggler_mark(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent.darkened(0.2))
-		"killer":
-			_draw_masked_figure(image, portrait_rect, accent, seed)
-			_draw_crosshair(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent)
-		_:
-			_draw_hooded_figure(image, portrait_rect, accent, false, seed)
+	var asset_id: String = manifest.get_role_portrait_asset_id(role_id)
+	if not _draw_portrait_asset(image, portrait_rect, asset_id):
+		match role_id:
+			"pusher":
+				_draw_hooded_figure(image, portrait_rect, accent, true, seed)
+				_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 6), Vector2.RIGHT, manifest.get_color("ink"))
+			"puller":
+				_draw_hat_figure(image, portrait_rect, accent, seed)
+				_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 5, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 6), Vector2.LEFT, manifest.get_color("ink"))
+			"blocker":
+				_draw_guard_figure(image, portrait_rect, accent, seed)
+				_draw_barred_gate(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), manifest.get_color("ink"))
+			"redirector":
+				_draw_scout_figure(image, portrait_rect, accent, seed)
+				_draw_bent_arrow(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 3, rect.size.y / 4), accent)
+			"grabber":
+				_draw_coat_figure(image, portrait_rect, accent, seed)
+				_draw_hook(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent.darkened(0.2))
+			"guide":
+				_draw_scarf_figure(image, portrait_rect, accent, seed)
+				_draw_eye(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 6), manifest.get_color("ink"))
+			"smuggler":
+				_draw_pack_figure(image, portrait_rect, accent, seed)
+				_draw_smuggler_mark(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent.darkened(0.2))
+			"killer":
+				_draw_masked_figure(image, portrait_rect, accent, seed)
+				_draw_crosshair(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2, rect.size.x / 4, rect.size.y / 4), accent)
+			_:
+				_draw_hooded_figure(image, portrait_rect, accent, false, seed)
+	var badge_rect := Rect2i(rect.position.x + 12, rect.position.y + 8, 28, 28)
+	_fill_rect(image, badge_rect.grow(4), manifest.get_color("paper").darkened(0.08))
+	_draw_symbol(image, badge_rect, role_id, manifest.get_color("ink"))
+
+
+func _draw_portrait_asset(image: Image, target_rect: Rect2i, asset_id: String) -> bool:
+	var portrait := _get_portrait_image(asset_id)
+	if portrait == null:
+		return false
+	var source_rect := _get_portrait_crop_rect(portrait)
+	var cropped := portrait.get_region(source_rect)
+	cropped.resize(target_rect.size.x, target_rect.size.y, Image.INTERPOLATE_LANCZOS)
+	image.blit_rect(cropped, Rect2i(Vector2i.ZERO, target_rect.size), target_rect.position)
+	return true
+
+
+func _get_portrait_image(asset_id: String) -> Image:
+	if _portrait_cache.has(asset_id):
+		return _portrait_cache[asset_id]
+	var path: String = manifest.get_portrait_asset_path(asset_id)
+	var global_path := ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(global_path):
+		return null
+	var portrait := Image.new()
+	var error := portrait.load(global_path)
+	if error != OK:
+		return null
+	_portrait_cache[asset_id] = portrait
+	return portrait
+
+
+func _get_portrait_crop_rect(portrait: Image) -> Rect2i:
+	var width := portrait.get_width()
+	var height := portrait.get_height()
+	var left := int(round(width * 0.08))
+	var top := int(round(height * 0.07))
+	var right := int(round(width * 0.08))
+	var bottom := int(round(height * 0.24))
+	return Rect2i(left, top, width - left - right, height - top - bottom)
 
 
 func _draw_card_labels(image: Image, rect: Rect2i, role_id: String, accent: Color, hidden: bool) -> void:

@@ -951,7 +951,7 @@ func _add_role(id: String, name: String, icon_id: String, description: String, t
 	definition.id = id
 	definition.display_name = name
 	definition.icon_id = icon_id
-	definition.portrait_asset_id = icon_id
+	definition.portrait_asset_id = _theme_manifest.get_role_portrait_asset_id(id)
 	definition.legend_icon_id = icon_id
 	definition.log_icon_id = icon_id
 	definition.silhouette_asset_id = "%s_shadow" % icon_id

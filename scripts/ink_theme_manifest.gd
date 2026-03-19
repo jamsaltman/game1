@@ -58,6 +58,17 @@ extends Resource
 	"smuggler": "SMUGGLER",
 	"killer": "KILLER",
 }
+@export var role_portrait_assets: Dictionary = {
+	"pusher": "pusher",
+	"puller": "crowd",
+	"blocker": "guard",
+	"redirector": "escort",
+	"grabber": "anchor",
+	"guide": "revealer",
+	"smuggler": "escort",
+	"killer": "chaser",
+}
+@export var player_portrait_asset: String = "player"
 @export var action_labels: Dictionary = {
 	"flip": "REVEAL",
 	"peek": "OBSERVE",
@@ -82,12 +93,24 @@ func get_color(id: String, fallback: Color = Color.WHITE) -> Color:
 func get_role_meta(role_id: String) -> Dictionary:
 	return {
 		"accent_color": get_color(role_id, get_color("paper_dark")),
-		"portrait_asset_id": role_id,
+		"portrait_asset_id": get_role_portrait_asset_id(role_id),
 		"legend_icon_id": role_id,
 		"log_icon_id": role_id,
 		"silhouette_asset_id": "%s_shadow" % role_id,
 		"display_label": String(role_labels.get(role_id, role_id.capitalize())),
 	}
+
+
+func get_role_portrait_asset_id(role_id: String) -> String:
+	return String(role_portrait_assets.get(role_id, role_id))
+
+
+func get_player_portrait_asset_id() -> String:
+	return player_portrait_asset
+
+
+func get_portrait_asset_path(asset_id: String) -> String:
+	return "res://assets/portraits/individual/%s.png" % asset_id
 
 
 func get_action_meta(action_id: String) -> Dictionary:

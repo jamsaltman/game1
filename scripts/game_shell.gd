@@ -4,6 +4,7 @@ extends Control
 signal action_requested(action_id: String)
 signal upgrade_requested(upgrade_id: String)
 signal reset_requested
+signal pixel_filter_toggled(enabled: bool)
 
 const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
 const InkPainterRef = preload("res://scripts/ink_painter.gd")
@@ -31,6 +32,7 @@ var _section_cache: Dictionary = {}
 @onready var _pressure_value_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureRow/PressureValue
 @onready var _objective_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Objective
 @onready var _status_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Status
+@onready var _pixel_toggle: CheckButton = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PixelToggle
 @onready var _pressure_bar: HBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureBar
 @onready var _legend_list: VBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox/LegendScroll/LegendList
 @onready var _board_host: Control = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost
@@ -56,6 +58,7 @@ func _ready() -> void:
 	_build_pressure_bar()
 	_build_structure_cards()
 	_build_upgrade_buttons()
+	_pixel_toggle.toggled.connect(_on_pixel_toggle_toggled)
 	resized.connect(_refresh_backdrop_textures)
 	call_deferred("_refresh_backdrop_textures")
 
@@ -96,6 +99,11 @@ func reset_visual_cache() -> void:
 	_section_cache.clear()
 
 
+func set_pixel_filter_enabled(enabled: bool) -> void:
+	_pixel_toggle.set_pressed_no_signal(enabled)
+	_style_button(_pixel_toggle, enabled, false)
+
+
 func _refresh_section_if_changed(section_id: String, payload, refresh_callable: Callable) -> void:
 	var next_key := JSON.stringify(payload, "", true)
 	if _section_cache.get(section_id, "") == next_key:
@@ -127,6 +135,12 @@ func _apply_static_theme() -> void:
 	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/StatusHeading, 13, _theme_manifest.get_color("muted"), true)
 	_apply_label_theme(_status_label, 15, _theme_manifest.get_color("muted"), false)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pixel_toggle.text = "PIXELATION"
+	_pixel_toggle.toggle_mode = true
+	_pixel_toggle.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_pixel_toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_pixel_toggle.custom_minimum_size = Vector2(0, 42)
+	_style_button(_pixel_toggle, _pixel_toggle.button_pressed, false)
 	_apply_panel_headings()
 	_apply_label_theme(_hover_state_label, 13, _theme_manifest.get_color("muted"), false)
 	_apply_label_theme(_hover_title_label, 24, _theme_manifest.get_color("ink"), true)
@@ -385,3 +399,8 @@ func _on_upgrade_pressed(button: Button) -> void:
 	if upgrade_id.is_empty():
 		return
 	emit_signal("upgrade_requested", upgrade_id)
+
+
+func _on_pixel_toggle_toggled(enabled: bool) -> void:
+	_style_button(_pixel_toggle, enabled, false)
+	emit_signal("pixel_filter_toggled", enabled)

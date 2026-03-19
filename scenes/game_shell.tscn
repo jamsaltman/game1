@@ -139,6 +139,11 @@ text = "FIELD NOTE"
 layout_mode = 2
 text = "Flip a nearby tile."
 
+[node name="PixelToggle" type="CheckButton" parent="Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox"]
+layout_mode = 2
+button_pressed = true
+text = "PIXELATION"
+
 [node name="LegendPanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
 layout_mode = 2
 size_flags_vertical = 3
