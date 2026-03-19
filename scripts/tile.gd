@@ -120,7 +120,7 @@ func _build_geometry() -> void:
 	_body_mesh.mesh = box_mesh
 
 	var face_mesh := QuadMesh.new()
-	face_mesh.size = Vector2(tile_width * 0.78, tile_depth * 0.78)
+	face_mesh.size = Vector2(tile_width * 0.86, tile_depth * 0.86)
 
 	_back_face.mesh = face_mesh
 	_back_face.rotation.x = -PI / 2.0

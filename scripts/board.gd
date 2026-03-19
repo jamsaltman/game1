@@ -3,10 +3,12 @@ extends Node3D
 
 const TileDataRef = preload("res://scripts/flip_tile_data.gd")
 
-@export_range(2, 10, 1) var grid_width: int = 5
-@export_range(2, 10, 1) var grid_height: int = 4
-@export_range(1.0, 2.0, 0.01) var tile_spacing: float = 1.28
-@export var tile_size: float = 1.0
+@export_range(2, 10, 1) var grid_width: int = 7
+@export_range(2, 10, 1) var grid_height: int = 7
+@export_range(1.0, 2.0, 0.01) var tile_spacing: float = 1.18
+@export var tile_size: float = 1.04
+@export_range(0.0, 2.0, 0.01) var board_margin: float = 0.3
+@export_range(0.0, 3.0, 0.01) var camera_padding: float = 0.3
 @export var icon_pool: PackedStringArray = PackedStringArray([
 	"sun",
 	"leaf",
@@ -123,9 +125,9 @@ func _clear_tiles() -> void:
 func _update_board_base() -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(
-		maxf(grid_width * tile_spacing, tile_size) + 0.9,
+		maxf(grid_width * tile_spacing, tile_size) + board_margin,
 		0.24,
-		maxf(grid_height * tile_spacing, tile_size) + 0.9
+		maxf(grid_height * tile_spacing, tile_size) + board_margin
 	)
 	_board_base.mesh = mesh
 	_board_base.position = Vector3(0.0, 0.0, 0.0)
@@ -145,9 +147,8 @@ func fit_camera(camera: Camera3D, viewport_size: Vector2) -> void:
 	var board_width := maxf((grid_width - 1) * tile_spacing + tile_size, tile_size)
 	var board_height := maxf((grid_height - 1) * tile_spacing + tile_size, tile_size)
 	var aspect_ratio := safe_size.x / safe_size.y
-	var framing_padding := 1.2
-	var required_height := board_height + framing_padding
-	var required_width_as_height := (board_width + framing_padding) / maxf(aspect_ratio, 0.001)
+	var required_height := board_height + camera_padding
+	var required_width_as_height := (board_width + camera_padding) / maxf(aspect_ratio, 0.001)
 
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.size = maxf(required_height, required_width_as_height)
