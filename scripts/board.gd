@@ -1,142 +1,137 @@
 class_name Board
 extends Node3D
 
-const TileDataRef = preload("res://scripts/flip_tile_data.gd")
+signal state_changed
 
-@export_range(2, 10, 1) var grid_width: int = 7
-@export_range(2, 10, 1) var grid_height: int = 7
+const MazeGameRef = preload("res://scripts/maze_game.gd")
+
+@export_range(3, 10, 1) var grid_width: int = 7
+@export_range(3, 10, 1) var grid_height: int = 7
 @export_range(1.0, 2.0, 0.01) var tile_spacing: float = 1.18
 @export var tile_size: float = 1.04
 @export_range(0.0, 2.0, 0.01) var board_margin: float = 0.3
 @export_range(0.0, 3.0, 0.01) var camera_padding: float = 0.3
-@export var icon_pool: PackedStringArray = PackedStringArray([
-	"sun",
-	"leaf",
-	"wave",
-	"gem",
-	"bolt",
-	"moon",
-])
 @export var random_seed: int = 0
 @export var tile_scene: PackedScene = preload("res://scenes/tile.tscn")
 
-var _rng := RandomNumberGenerator.new()
-var _tile_data: Array = []
-var _tiles: Array = []
+var _game = null
+var _tiles_by_pos: Dictionary = {}
 var _hovered_tile = null
+var _resolving_turn: bool = false
+var _selected_targets: Array[Vector2i] = []
+var _preview_markers: Array = []
+var _player_move_tween: Tween
+var _player_base_y: float = 0.42
 
 @onready var _tiles_root: Node3D = $Tiles
 @onready var _board_base: MeshInstance3D = $BoardBase
 
 
 func _ready() -> void:
-	reset_board()
+	_ensure_helper_nodes()
+	start_new_run()
+
+
+func start_new_run() -> void:
+	_game = MazeGameRef.new(Vector2i(grid_width, grid_height), random_seed)
+	_rebuild_tiles()
+	_sync_board_visuals()
+	emit_signal("state_changed")
 
 
 func reset_board() -> void:
-	_seed_rng()
-	_clear_tiles()
-	_tile_data.clear()
-	_tiles.clear()
+	start_new_run()
 
-	var offset_x := -((grid_width - 1) * tile_spacing) * 0.5
-	var offset_z := -((grid_height - 1) * tile_spacing) * 0.5
 
-	for row in range(grid_height):
-		for column in range(grid_width):
-			var tile = tile_scene.instantiate()
-			var icon_id := icon_pool[_rng.randi_range(0, icon_pool.size() - 1)]
-			var tile_data = TileDataRef.new()
-			tile_data.icon_id = icon_id
-			tile_data.is_flipped = false
+func start_next_board() -> void:
+	if _game == null:
+		start_new_run()
+		return
+	_game.start_next_board()
+	_sync_board_visuals()
+	emit_signal("state_changed")
 
-			tile.tile_width = tile_size
-			tile.tile_depth = tile_size
-			tile.position = Vector3(offset_x + column * tile_spacing, 0.18, offset_z + row * tile_spacing)
-			tile.set_tile_data(tile_data)
 
-			_tiles_root.add_child(tile)
-			_tiles.append(tile)
-			_tile_data.append(tile_data)
+func choose_upgrade(upgrade_id: String) -> void:
+	if _game == null or _resolving_turn:
+		return
+	if _game.choose_upgrade(upgrade_id):
+		_sync_board_visuals()
+		emit_signal("state_changed")
 
-	_update_board_base()
-	fit_camera(get_viewport().get_camera_3d(), get_viewport().size)
+
+func set_selected_action(action_id: String) -> void:
+	if _game == null or _resolving_turn:
+		return
+	if _game.set_selected_action(action_id):
+		_sync_board_visuals()
+		emit_signal("state_changed")
 
 
 func update_hover(screen_pos: Vector2, active: bool) -> void:
+	if _resolving_turn:
+		active = false
 	var next_tile = _pick_tile(screen_pos) if active else null
-
 	if _hovered_tile == next_tile:
 		return
-
 	if is_instance_valid(_hovered_tile):
 		_hovered_tile.set_hovered(false)
-
 	_hovered_tile = next_tile
-
 	if is_instance_valid(_hovered_tile):
 		_hovered_tile.set_hovered(true)
 
 
 func click_tile(screen_pos: Vector2) -> void:
+	if _game == null or _resolving_turn:
+		return
 	var tile = _pick_tile(screen_pos)
 	if tile == null:
 		return
-	tile.flip_to_front()
+	_handle_grid_click(tile.grid_position)
 
 
-func _pick_tile(screen_pos: Vector2):
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return null
-
-	var board_point: Variant = _screen_to_board_point(camera, screen_pos)
-	if board_point == null:
-		return null
-
-	for tile in _tiles:
-		if not is_instance_valid(tile):
-			continue
-
-		var half_width: float = tile.tile_width * 0.5
-		var half_depth: float = tile.tile_depth * 0.5
-		if abs(board_point.x - tile.position.x) <= half_width and abs(board_point.z - tile.position.z) <= half_depth:
-			return tile
-	return null
+func _handle_grid_click(grid_pos: Vector2i) -> void:
+	var clicked_tile = _tiles_by_pos.get(grid_pos)
+	var report: Dictionary = _game.try_flip_cell(grid_pos)
+	if not bool(report.get("ok", false)) and _game.selected_action_id != "flip":
+		_game.set_selected_action("flip")
+		report = _game.try_flip_cell(grid_pos)
+	if not bool(report.get("ok", false)):
+		if clicked_tile != null:
+			clicked_tile.play_click_feedback(false)
+		_game.note_invalid_click()
+		_sync_board_visuals()
+		emit_signal("state_changed")
+		return
+	if clicked_tile != null:
+		clicked_tile.play_click_feedback(true)
+	_resolve_visual_report(report)
 
 
-func _seed_rng() -> void:
-	if random_seed == 0:
-		_rng.randomize()
-	else:
-		_rng.seed = random_seed
+func _resolve_visual_report(report: Dictionary) -> void:
+	_resolving_turn = true
+	_sync_board_visuals(false)
+	await _animate_reveals(report.get("reveals", []))
+	await _animate_player_moves(report.get("moves", []))
+	_sync_board_visuals()
+	_resolving_turn = false
+	emit_signal("state_changed")
 
 
-func _clear_tiles() -> void:
-	if is_instance_valid(_hovered_tile):
-		_hovered_tile.set_hovered(false)
-	_hovered_tile = null
-
-	for child in _tiles_root.get_children():
-		_tiles_root.remove_child(child)
-		child.queue_free()
+func get_hud_state() -> Dictionary:
+	return _game.get_hud_state() if _game != null else {}
 
 
-func _update_board_base() -> void:
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(
-		maxf(grid_width * tile_spacing, tile_size) + board_margin,
-		0.24,
-		maxf(grid_height * tile_spacing, tile_size) + board_margin
-	)
-	_board_base.mesh = mesh
-	_board_base.position = Vector3(0.0, 0.0, 0.0)
+func get_action_buttons() -> Array:
+	return _game.get_action_buttons() if _game != null else []
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color8(203, 176, 118)
-	material.roughness = 0.94
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	_board_base.set_surface_override_material(0, material)
+
+func get_upgrade_offer_data() -> Array:
+	return _game.get_upgrade_offer_data() if _game != null else []
+
+
+func get_legal_flip_positions() -> Array[Vector2i]:
+	return _game.get_legal_flip_positions() if _game != null else []
 
 
 func fit_camera(camera: Camera3D, viewport_size: Vector2) -> void:
@@ -156,18 +151,212 @@ func fit_camera(camera: Camera3D, viewport_size: Vector2) -> void:
 	camera.look_at(Vector3.ZERO, Vector3.BACK)
 
 
-func _screen_to_board_point(camera: Camera3D, screen_pos: Vector2):
-	if _tiles.is_empty():
+func _rebuild_tiles() -> void:
+	if is_instance_valid(_hovered_tile):
+		_hovered_tile.set_hovered(false)
+	_hovered_tile = null
+	for child in _tiles_root.get_children():
+		_tiles_root.remove_child(child)
+		child.queue_free()
+	_tiles_by_pos.clear()
+
+	var offset_x := -((grid_width - 1) * tile_spacing) * 0.5
+	var offset_z := -((grid_height - 1) * tile_spacing) * 0.5
+	var center: Vector2i = _game.get_center_position()
+	for row in range(grid_height):
+		for column in range(grid_width):
+			var grid_pos := Vector2i(column, row)
+			if grid_pos == center:
+				continue
+			var tile = tile_scene.instantiate()
+			tile.grid_position = grid_pos
+			tile.tile_width = tile_size
+			tile.tile_depth = tile_size
+			tile.position = Vector3(offset_x + column * tile_spacing, 0.18, offset_z + row * tile_spacing)
+			_tiles_root.add_child(tile)
+			_tiles_by_pos[grid_pos] = tile
+
+	_update_board_base()
+	_update_player_marker_position(true)
+
+
+func _sync_board_visuals(update_player_marker: bool = true) -> void:
+	if _game == null:
+		return
+	_selected_targets = _game.get_valid_targets_for_action(_game.selected_action_id)
+	for pos in _tiles_by_pos.keys():
+		var tile = _tiles_by_pos[pos]
+		var cell = _game.get_cell(pos)
+		if cell == null:
+			continue
+		var role_definition = _game.get_role_definition(cell.role_id)
+		var icon_id: String = role_definition.icon_id if role_definition != null else "guide"
+		tile.set_visual_state({
+			"grid_position": pos,
+			"icon_id": icon_id,
+			"is_flipped": not cell.hidden,
+			"is_target": _selected_targets.has(pos),
+			"is_previewed": cell.previewed,
+			"is_selected_target": _game.selected_action_id != "flip" and _selected_targets.has(pos),
+			"is_edge": _is_edge(pos),
+		})
+	_update_preview_markers()
+	if update_player_marker:
+		_update_player_marker_position(true)
+
+
+func _animate_reveals(reveals: Array) -> void:
+	for reveal in reveals:
+		var pos: Vector2i = reveal.get("position", Vector2i.ZERO)
+		var tile = _tiles_by_pos.get(pos)
+		if tile == null:
+			continue
+		var role_definition = _game.get_role_definition(String(reveal.get("role_id", "")))
+		if role_definition == null:
+			continue
+		tile.play_reveal(role_definition.icon_id)
+		if tile.is_animating:
+			await tile.flipped
+		else:
+			await get_tree().create_timer(0.02).timeout
+
+
+func _animate_player_moves(moves: Array) -> void:
+	for move in moves:
+		var to_pos: Vector2i = move.get("to", _game.player.position)
+		if is_instance_valid(_player_move_tween):
+			_player_move_tween.kill()
+		_player_move_tween = create_tween()
+		_player_move_tween.set_trans(Tween.TRANS_QUAD)
+		_player_move_tween.set_ease(Tween.EASE_OUT)
+		_player_move_tween.tween_property(_player_marker(), "position", _grid_to_world(to_pos, _player_base_y), 0.16)
+		await _player_move_tween.finished
+		await get_tree().create_timer(0.05).timeout
+
+
+func _ensure_helper_nodes() -> void:
+	if get_node_or_null("PlayerMarker") == null:
+		var marker := MeshInstance3D.new()
+		marker.name = "PlayerMarker"
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = 0.18
+		mesh.bottom_radius = 0.22
+		mesh.height = 0.36
+		marker.mesh = mesh
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color8(242, 247, 255)
+		material.emission_enabled = true
+		material.emission = Color8(135, 201, 255)
+		material.emission_energy_multiplier = 0.8
+		marker.set_surface_override_material(0, material)
+		add_child(marker)
+	if get_node_or_null("PreviewRoot") == null:
+		var preview_root := Node3D.new()
+		preview_root.name = "PreviewRoot"
+		add_child(preview_root)
+
+
+func _player_marker() -> MeshInstance3D:
+	return $PlayerMarker
+
+
+func _preview_root() -> Node3D:
+	return $PreviewRoot
+
+
+func _update_player_marker_position(immediate: bool = false) -> void:
+	if _game == null:
+		return
+	var next_position := _grid_to_world(_game.player.position, _player_base_y)
+	if immediate:
+		_player_marker().position = next_position
+		return
+	if is_instance_valid(_player_move_tween):
+		_player_move_tween.kill()
+	_player_move_tween = create_tween()
+	_player_move_tween.tween_property(_player_marker(), "position", next_position, 0.12)
+
+
+func _update_preview_markers() -> void:
+	for marker in _preview_markers:
+		if is_instance_valid(marker):
+			marker.queue_free()
+	_preview_markers.clear()
+	for preview in _game.get_preview_intents():
+		var from_pos: Vector2i = preview.get("from", Vector2i.ZERO)
+		var to_pos: Vector2i = preview.get("to", Vector2i.ZERO)
+		if not _game.is_in_bounds(to_pos):
+			continue
+		var marker := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.12, 0.06, 0.58)
+		marker.mesh = mesh
+		var material := StandardMaterial3D.new()
+		var is_push := String(preview.get("kind", "")) == "push"
+		material.albedo_color = Color8(89, 177, 255) if is_push else Color8(121, 217, 124)
+		material.emission_enabled = true
+		material.emission = material.albedo_color
+		material.emission_energy_multiplier = 0.5
+		marker.set_surface_override_material(0, material)
+		var midpoint := (_grid_to_world(from_pos, 0.42) + _grid_to_world(to_pos, 0.42)) * 0.5
+		marker.position = midpoint
+		var direction := (_grid_to_world(to_pos, 0.42) - _grid_to_world(from_pos, 0.42)).normalized()
+		marker.look_at(midpoint + direction, Vector3.UP)
+		_preview_root().add_child(marker)
+		_preview_markers.append(marker)
+
+
+func _update_board_base() -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(
+		maxf(grid_width * tile_spacing, tile_size) + board_margin,
+		0.24,
+		maxf(grid_height * tile_spacing, tile_size) + board_margin
+	)
+	_board_base.mesh = mesh
+	_board_base.position = Vector3(0.0, 0.0, 0.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color8(190, 166, 114)
+	material.roughness = 0.94
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_board_base.set_surface_override_material(0, material)
+
+
+func _pick_tile(screen_pos: Vector2):
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return null
+	var board_point: Variant = _screen_to_board_point(camera, screen_pos)
+	if board_point == null:
 		return null
 
+	for tile in _tiles_by_pos.values():
+		var half_width: float = tile.tile_width * 0.5
+		var half_depth: float = tile.tile_depth * 0.5
+		if abs(board_point.x - tile.position.x) <= half_width and abs(board_point.z - tile.position.z) <= half_depth:
+			return tile
+	return null
+
+
+func _screen_to_board_point(camera: Camera3D, screen_pos: Vector2):
+	if _tiles_by_pos.is_empty():
+		return null
 	var ray_origin := camera.project_ray_origin(screen_pos)
 	var ray_normal := camera.project_ray_normal(screen_pos)
 	if is_zero_approx(ray_normal.y):
 		return null
-
-	var plane_y: float = _tiles[0].position.y
+	var plane_y: float = 0.18
 	var travel: float = (plane_y - ray_origin.y) / ray_normal.y
 	if travel < 0.0:
 		return null
-
 	return ray_origin + ray_normal * travel
+
+
+func _grid_to_world(grid_pos: Vector2i, y: float) -> Vector3:
+	var offset_x := -((grid_width - 1) * tile_spacing) * 0.5
+	var offset_z := -((grid_height - 1) * tile_spacing) * 0.5
+	return Vector3(offset_x + grid_pos.x * tile_spacing, y, offset_z + grid_pos.y * tile_spacing)
+
+
+func _is_edge(pos: Vector2i) -> bool:
+	return pos.x == 0 or pos.y == 0 or pos.x == grid_width - 1 or pos.y == grid_height - 1

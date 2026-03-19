@@ -1,39 +1,34 @@
 class_name Tile
 extends StaticBody3D
 
-signal flipped(tile: Tile, icon_id: String)
+signal flipped(tile: Tile)
 
 const IconLibraryRef = preload("res://scripts/icon_library.gd")
 
-@export var icon_id: String = "sun":
-	set(value):
-		icon_id = value
-		_update_face_texture()
-
-@export var is_flipped: bool = false:
-	set(value):
-		is_flipped = value
-		if is_node_ready():
-			_apply_face_visibility()
-
-@export_range(0.05, 1.2, 0.01) var flip_duration: float = 0.34
+@export_range(0.05, 1.2, 0.01) var flip_duration: float = 0.3
+@export_range(0.02, 1.0, 0.01) var flip_squash_depth: float = 0.08
 @export var hover_enabled: bool = true
 @export var tile_width: float = 1.0
 @export var tile_depth: float = 1.0
 @export var tile_height: float = 0.24
 @export var face_texture_size: int = 18
 @export var flip_lift_height: float = 0.32
-@export_range(0.02, 1.0, 0.01) var flip_squash_depth: float = 0.08
 
+var grid_position: Vector2i = Vector2i.ZERO
+var icon_id: String = "guide"
+var is_flipped: bool = false
 var is_animating: bool = false
 
-var _tile_data
+var _hovered: bool = false
+var _visual_state: Dictionary = {}
 var _flip_tween: Tween
+var _feedback_tween: Tween
 var _base_material: StandardMaterial3D
 var _back_material: StandardMaterial3D
 var _front_material: StandardMaterial3D
-var _hovered: bool = false
 var _icon_library = IconLibraryRef.new()
+var _feedback_color: Color = Color(0, 0, 0, 0)
+var _feedback_strength: float = 0.0
 
 @onready var _visual_root: Node3D = $VisualRoot
 @onready var _body_mesh: MeshInstance3D = $VisualRoot/BodyMesh
@@ -45,30 +40,63 @@ var _icon_library = IconLibraryRef.new()
 func _ready() -> void:
 	_build_geometry()
 	_create_materials()
-	_update_face_texture()
+	_update_materials()
 	_apply_face_visibility()
 
 
-func set_tile_data(data) -> void:
-	_tile_data = data
-	icon_id = data.icon_id
-	is_flipped = data.is_flipped
-
-
-func set_face(value: String) -> void:
-	icon_id = value
+func set_visual_state(state: Dictionary) -> void:
+	_visual_state = state.duplicate(true)
+	grid_position = state.get("grid_position", grid_position)
+	icon_id = String(state.get("icon_id", icon_id))
+	is_flipped = bool(state.get("is_flipped", is_flipped))
+	_update_materials()
+	_apply_face_visibility()
 
 
 func set_hovered(value: bool) -> void:
-	var next_hover := value and hover_enabled and not is_animating and not is_flipped
+	var next_hover := value and hover_enabled and not is_animating
 	if _hovered == next_hover:
 		return
-
 	_hovered = next_hover
 	_visual_root.position.y = 0.08 if _hovered else 0.0
 	_visual_root.scale = Vector3.ONE * (1.04 if _hovered else 1.0)
-	_update_face_texture()
-	_sync_material_tint()
+	_update_materials()
+
+
+func play_reveal(next_icon_id: String) -> void:
+	icon_id = next_icon_id
+	if is_flipped or is_animating:
+		_update_materials()
+		return
+	flip_to_front()
+
+
+func play_click_feedback(is_valid: bool) -> void:
+	if is_instance_valid(_feedback_tween):
+		_feedback_tween.kill()
+	_visual_root.position = Vector3(0.0, 0.0, 0.0)
+	_visual_root.scale = Vector3.ONE
+	_feedback_tween = create_tween()
+	if is_valid:
+		_feedback_color = Color8(255, 245, 180)
+		_feedback_strength = 0.95
+		_feedback_tween.set_trans(Tween.TRANS_BACK)
+		_feedback_tween.set_ease(Tween.EASE_OUT)
+		_feedback_tween.parallel().tween_property(_visual_root, "position:y", 0.15, 0.07)
+		_feedback_tween.parallel().tween_property(_visual_root, "scale", Vector3(1.06, 1.0, 1.06), 0.07)
+		_feedback_tween.tween_property(self, "_feedback_strength", 0.0, 0.2)
+	else:
+		_feedback_color = Color8(255, 106, 106)
+		_feedback_strength = 0.9
+		_feedback_tween.set_trans(Tween.TRANS_SINE)
+		_feedback_tween.set_ease(Tween.EASE_OUT)
+		_feedback_tween.tween_property(_visual_root, "position:x", 0.09, 0.04)
+		_feedback_tween.tween_property(_visual_root, "position:x", -0.09, 0.06)
+		_feedback_tween.tween_property(_visual_root, "position:x", 0.05, 0.04)
+		_feedback_tween.tween_property(_visual_root, "position:x", 0.0, 0.05)
+		_feedback_tween.parallel().tween_property(self, "_feedback_strength", 0.0, 0.24)
+	_feedback_tween.finished.connect(_finish_feedback, CONNECT_ONE_SHOT)
+	_update_materials()
 
 
 func flip_to_front() -> void:
@@ -77,18 +105,16 @@ func flip_to_front() -> void:
 
 	is_animating = true
 	set_hovered(false)
-
 	if is_instance_valid(_flip_tween):
 		_flip_tween.kill()
 
 	_back_face.visible = true
 	_front_face.visible = false
-
 	_flip_tween = create_tween()
 	_flip_tween.set_trans(Tween.TRANS_CUBIC)
 	_flip_tween.set_ease(Tween.EASE_OUT)
 	_flip_tween.parallel().tween_property(_visual_root, "position:y", flip_lift_height, flip_duration * 0.5)
-	_flip_tween.parallel().tween_property(_visual_root, "scale", Vector3(1.1, 1.0, flip_squash_depth), flip_duration * 0.5)
+	_flip_tween.parallel().tween_property(_visual_root, "scale", Vector3(1.08, 1.0, flip_squash_depth), flip_duration * 0.5)
 	_flip_tween.tween_property(self, "rotation_degrees:x", 90.0, flip_duration * 0.5)
 	_flip_tween.tween_callback(_swap_visible_face)
 	_flip_tween.set_trans(Tween.TRANS_BACK)
@@ -99,19 +125,29 @@ func flip_to_front() -> void:
 	_flip_tween.finished.connect(_finish_flip, CONNECT_ONE_SHOT)
 
 
+func _finish_flip() -> void:
+	is_animating = false
+	is_flipped = true
+	_visual_root.position.y = 0.0
+	_visual_root.scale = Vector3.ONE
+	_apply_face_visibility()
+	emit_signal("flipped", self)
+
+
+func _finish_feedback() -> void:
+	if not _hovered:
+		_visual_root.position = Vector3.ZERO
+		_visual_root.scale = Vector3.ONE
+	else:
+		_visual_root.position = Vector3(0.0, 0.08, 0.0)
+		_visual_root.scale = Vector3.ONE * 1.04
+	_feedback_strength = 0.0
+	_update_materials()
+
+
 func _swap_visible_face() -> void:
 	_back_face.visible = false
 	_front_face.visible = true
-
-
-func _finish_flip() -> void:
-	is_animating = false
-	_visual_root.position.y = 0.0
-	_visual_root.scale = Vector3.ONE
-	is_flipped = true
-	if _tile_data != null:
-		_tile_data.is_flipped = true
-	emit_signal("flipped", self, icon_id)
 
 
 func _build_geometry() -> void:
@@ -121,7 +157,6 @@ func _build_geometry() -> void:
 
 	var face_mesh := QuadMesh.new()
 	face_mesh.size = Vector2(tile_width * 0.86, tile_depth * 0.86)
-
 	_back_face.mesh = face_mesh
 	_back_face.rotation.x = -PI / 2.0
 	_back_face.position = Vector3(0.0, tile_height * 0.5 + 0.003, 0.0)
@@ -137,12 +172,11 @@ func _build_geometry() -> void:
 
 func _create_materials() -> void:
 	_base_material = StandardMaterial3D.new()
-	_base_material.albedo_color = Color8(55, 65, 82)
-	_base_material.roughness = 0.88
-	_base_material.metallic = 0.05
+	_base_material.roughness = 0.92
+	_base_material.metallic = 0.03
+	_base_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	_back_material = StandardMaterial3D.new()
-	_back_material.albedo_color = Color8(218, 221, 214)
 	_back_material.roughness = 1.0
 	_back_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_back_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -150,7 +184,6 @@ func _create_materials() -> void:
 	_back_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	_front_material = StandardMaterial3D.new()
-	_front_material.albedo_color = Color8(248, 244, 225)
 	_front_material.roughness = 1.0
 	_front_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_front_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -160,28 +193,40 @@ func _create_materials() -> void:
 	_body_mesh.set_surface_override_material(0, _base_material)
 	_back_face.set_surface_override_material(0, _back_material)
 	_front_face.set_surface_override_material(0, _front_material)
-	_sync_material_tint()
 
 
-func _update_face_texture() -> void:
-	if _front_material == null:
+func _update_materials() -> void:
+	if _base_material == null:
 		return
 
-	_front_material.albedo_texture = _icon_library.make_face_texture(icon_id, true, _hovered, face_texture_size)
+	var is_edge := bool(_visual_state.get("is_edge", false))
+	var is_target := bool(_visual_state.get("is_target", false))
+	var is_previewed := bool(_visual_state.get("is_previewed", false))
+	var is_selected_target := bool(_visual_state.get("is_selected_target", false))
+	var base_color := Color8(46, 54, 71)
+	if is_edge:
+		base_color = Color8(122, 103, 55)
+	if is_target:
+		base_color = Color8(82, 169, 255)
+	if is_previewed:
+		base_color = Color8(92, 176, 100)
+	if is_selected_target:
+		base_color = Color8(255, 164, 96)
+	if is_target and not is_flipped:
+		base_color = base_color.lightened(0.15)
+	if _hovered:
+		base_color = base_color.lightened(0.22)
+	if _feedback_strength > 0.0:
+		base_color = base_color.lerp(_feedback_color, _feedback_strength)
+
+	_base_material.albedo_color = base_color
+	_back_material.albedo_color = Color.WHITE
+	_front_material.albedo_color = Color.WHITE
 	_back_material.albedo_texture = _icon_library.make_face_texture(icon_id, false, _hovered, face_texture_size)
-	_sync_material_tint()
+	_front_material.albedo_texture = _icon_library.make_face_texture(icon_id, true, _hovered, face_texture_size)
 
 
 func _apply_face_visibility() -> void:
 	rotation_degrees.x = 180.0 if is_flipped else 0.0
 	_back_face.visible = not is_flipped
 	_front_face.visible = is_flipped
-
-
-func _sync_material_tint() -> void:
-	if _base_material == null:
-		return
-
-	_base_material.albedo_color = Color8(88, 124, 168) if _hovered else Color8(55, 65, 82)
-	_back_material.albedo_color = Color.WHITE
-	_front_material.albedo_color = Color.WHITE
