@@ -99,6 +99,7 @@ func make_role_card_texture(role_id: String, state: Dictionary, size: int = 256,
 	if _texture_cache.has(key):
 		return _texture_cache[key]
 	var hidden := bool(state.get("is_hidden", false))
+	var full_bleed := bool(state.get("full_bleed", false))
 	var hovered := bool(state.get("is_hovered", false))
 	var previewed := bool(state.get("is_previewed", false))
 	var selected := bool(state.get("is_selected_target", false))
@@ -118,12 +119,19 @@ func make_role_card_texture(role_id: String, state: Dictionary, size: int = 256,
 		bg = paper.lerp(manifest.get_color("paper_dark"), _noise2(seed, size, 0) * 0.18)
 	if hovered and not hidden:
 		bg = bg.lightened(0.05)
-	_draw_irregular_card(image, Rect2i(8, 8, size - 16, size - 16), bg, charcoal, accent, seed)
-	if hidden:
-		_draw_hidden_card(image, Rect2i(20, 20, size - 40, size - 40), accent, previewed, seed)
+	if full_bleed:
+		_fill_rect(image, Rect2i(0, 0, size, size), bg)
+		if hidden:
+			_draw_hidden_card(image, Rect2i(0, 0, size, size), accent, previewed, seed)
+		else:
+			_draw_full_bleed_portrait(image, Rect2i(0, 0, size, size), role_id, accent, seed)
 	else:
-		_draw_portrait_card(image, Rect2i(20, 20, size - 40, size - 40), role_id, accent, seed)
-	_draw_card_labels(image, Rect2i(0, 0, size, size), role_id, accent, hidden)
+		_draw_irregular_card(image, Rect2i(8, 8, size - 16, size - 16), bg, charcoal, accent, seed)
+		if hidden:
+			_draw_hidden_card(image, Rect2i(20, 20, size - 40, size - 40), accent, previewed, seed)
+		else:
+			_draw_portrait_card(image, Rect2i(20, 20, size - 40, size - 40), role_id, accent, seed)
+		_draw_card_labels(image, Rect2i(0, 0, size, size), role_id, accent, hidden)
 	if edge:
 		_draw_corner_notches(image, size, manifest.get_color("highlight"))
 	if adjacent:
@@ -159,11 +167,10 @@ func make_player_token_texture(size: int = 256) -> Texture2D:
 		return _texture_cache[key]
 	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0, 0, 0, 0))
-	_draw_irregular_card(image, Rect2i(16, 20, size - 32, size - 40), manifest.get_color("paper"), manifest.get_color("ink"), manifest.get_color("danger"), 211)
-	var rect := Rect2i(size * 0.22, size * 0.18, size * 0.56, size * 0.66)
+	_fill_rect(image, Rect2i(0, 0, size, size), manifest.get_color("paper"))
+	var rect := Rect2i(0, 0, size, size)
 	if not _draw_portrait_asset(image, rect, manifest.get_player_portrait_asset_id()):
-		_draw_hooded_figure(image, rect, manifest.get_color("danger"), true, 211)
-	_draw_selection_frame(image, size, manifest.get_color("danger"))
+		_draw_hooded_figure(image, rect.grow(-6), manifest.get_color("danger"), true, 211)
 	var texture := ImageTexture.create_from_image(image)
 	_texture_cache[key] = texture
 	return texture
@@ -298,6 +305,12 @@ func _draw_portrait_card(image: Image, rect: Rect2i, role_id: String, accent: Co
 	var badge_rect := Rect2i(rect.position.x + 12, rect.position.y + 8, 28, 28)
 	_fill_rect(image, badge_rect.grow(4), manifest.get_color("paper").darkened(0.08))
 	_draw_symbol(image, badge_rect, role_id, manifest.get_color("ink"))
+
+
+func _draw_full_bleed_portrait(image: Image, rect: Rect2i, role_id: String, accent: Color, seed: int) -> void:
+	if _draw_portrait_asset(image, rect, manifest.get_role_portrait_asset_id(role_id)):
+		return
+	_draw_hooded_figure(image, rect.grow(-6), accent, false, seed)
 
 
 func _draw_portrait_asset(image: Image, target_rect: Rect2i, asset_id: String) -> bool:

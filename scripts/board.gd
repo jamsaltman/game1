@@ -343,7 +343,7 @@ func _ensure_helper_nodes() -> void:
 		var marker := MeshInstance3D.new()
 		marker.name = "PlayerMarker"
 		var mesh := QuadMesh.new()
-		mesh.size = Vector2(0.86, 0.96)
+		mesh.size = Vector2(tile_size, tile_size)
 		marker.mesh = mesh
 		var material := StandardMaterial3D.new()
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

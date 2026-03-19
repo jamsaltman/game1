@@ -165,11 +165,11 @@ func _apply_hover_transform() -> void:
 
 func _build_geometry() -> void:
 	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(tile_width * 0.94, tile_height, tile_depth * 0.94)
+	box_mesh.size = Vector3(tile_width, tile_height, tile_depth)
 	_body_mesh.mesh = box_mesh
 
 	var face_mesh := QuadMesh.new()
-	face_mesh.size = Vector2(tile_width * 0.96, tile_depth * 0.96)
+	face_mesh.size = Vector2(tile_width, tile_depth)
 	_back_face.mesh = face_mesh
 	_back_face.rotation = Vector3(-PI / 2.0, 0.0, PI)
 	_back_face.position = Vector3(0.0, tile_height * 0.5 + 0.004, 0.0)
@@ -243,6 +243,7 @@ func _update_materials() -> void:
 	_front_material.albedo_color = Color.WHITE
 	_back_material.albedo_texture = _painter.make_role_card_texture(icon_id, {
 		"is_hidden": true,
+		"full_bleed": true,
 		"is_previewed": is_previewed,
 		"is_target": is_target,
 		"is_selected_target": is_selected_target,
@@ -252,6 +253,7 @@ func _update_materials() -> void:
 	}, face_texture_size, _card_variant)
 	_front_material.albedo_texture = _painter.make_role_card_texture(icon_id, {
 		"is_hidden": false,
+		"full_bleed": true,
 		"is_previewed": is_previewed,
 		"is_target": is_target,
 		"is_selected_target": is_selected_target,
