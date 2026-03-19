@@ -88,16 +88,18 @@ func _pick_tile(screen_pos: Vector2):
 	if camera == null:
 		return null
 
-	var ray_origin := camera.project_ray_origin(screen_pos)
-	var ray_end := ray_origin + camera.project_ray_normal(screen_pos) * 100.0
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-	var result := get_world_3d().direct_space_state.intersect_ray(query)
-	if result.is_empty():
+	var board_point: Variant = _screen_to_board_point(camera, screen_pos)
+	if board_point == null:
 		return null
 
-	var collider = result.get("collider")
-	if collider != null and collider.has_method("flip_to_front") and collider.has_method("set_hovered"):
-		return collider
+	for tile in _tiles:
+		if not is_instance_valid(tile):
+			continue
+
+		var half_width: float = tile.tile_width * 0.5
+		var half_depth: float = tile.tile_depth * 0.5
+		if abs(board_point.x - tile.position.x) <= half_width and abs(board_point.z - tile.position.z) <= half_depth:
+			return tile
 	return null
 
 
@@ -151,3 +153,20 @@ func fit_camera(camera: Camera3D, viewport_size: Vector2) -> void:
 	camera.size = maxf(required_height, required_width_as_height)
 	camera.position = Vector3(0.0, 8.4, 0.0)
 	camera.look_at(Vector3.ZERO, Vector3.BACK)
+
+
+func _screen_to_board_point(camera: Camera3D, screen_pos: Vector2):
+	if _tiles.is_empty():
+		return null
+
+	var ray_origin := camera.project_ray_origin(screen_pos)
+	var ray_normal := camera.project_ray_normal(screen_pos)
+	if is_zero_approx(ray_normal.y):
+		return null
+
+	var plane_y: float = _tiles[0].position.y
+	var travel: float = (plane_y - ray_origin.y) / ray_normal.y
+	if travel < 0.0:
+		return null
+
+	return ray_origin + ray_normal * travel

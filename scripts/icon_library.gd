@@ -18,6 +18,10 @@ static var INK := {
 	"bolt": Color8(255, 232, 113),
 	"moon": Color8(164, 149, 230),
 }
+static var FACE_BG_FRONT := Color8(242, 242, 242)
+static var FACE_BG_BACK := Color8(18, 18, 18)
+static var FACE_BG_FRONT_HOVER := Color8(255, 255, 255)
+static var FACE_BG_BACK_HOVER := Color8(40, 40, 40)
 
 
 static func make_icon_texture(icon_id: String, size: int = 16) -> ImageTexture:
@@ -40,6 +44,19 @@ static func make_icon_texture(icon_id: String, size: int = 16) -> ImageTexture:
 			_draw_moon(image, ink)
 		_:
 			_draw_gem(image, ink)
+
+	return ImageTexture.create_from_image(image)
+
+
+static func make_face_texture(icon_id: String, is_front: bool, hovered: bool = false, size: int = 16) -> ImageTexture:
+	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+
+	var face_color := FACE_BG_FRONT if is_front else FACE_BG_BACK
+	if hovered:
+		face_color = FACE_BG_FRONT_HOVER if is_front else FACE_BG_BACK_HOVER
+
+	_draw_rounded_rect(image, Rect2i(1, 1, size - 2, size - 2), 3, face_color)
 
 	return ImageTexture.create_from_image(image)
 
@@ -107,3 +124,14 @@ static func _fill_rect(image: Image, rect: Rect2i, color: Color) -> void:
 	for y in range(rect.position.y, rect.position.y + rect.size.y):
 		for x in range(rect.position.x, rect.position.x + rect.size.x):
 			image.set_pixel(x, y, color)
+
+
+static func _draw_rounded_rect(image: Image, rect: Rect2i, radius: int, color: Color) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			var local_x: float = x - rect.position.x
+			var local_y: float = y - rect.position.y
+			var dx: float = max(abs(local_x - (rect.size.x - 1) * 0.5) - (rect.size.x * 0.5 - radius), 0.0)
+			var dy: float = max(abs(local_y - (rect.size.y - 1) * 0.5) - (rect.size.y * 0.5 - radius), 0.0)
+			if dx * dx + dy * dy <= radius * radius:
+				image.set_pixel(x, y, color)
