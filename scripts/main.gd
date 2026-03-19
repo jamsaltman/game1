@@ -82,11 +82,17 @@ func _resize_display() -> void:
 	var host_size: Vector2 = _shell.get_board_host().size
 	if host_size.x <= 0.0 or host_size.y <= 0.0:
 		return
-	var render_scale := maxf(host_size.y / TARGET_INTERNAL_HEIGHT, 1.0)
+	var render_scale := 1.0
 	var viewport_size := Vector2i(
-		maxi(1, int(round(host_size.x / render_scale))),
-		maxi(1, int(round(host_size.y / render_scale)))
+		maxi(1, int(round(host_size.x))),
+		maxi(1, int(round(host_size.y)))
 	)
+	if _pixel_filter_enabled:
+		render_scale = maxf(host_size.y / TARGET_INTERNAL_HEIGHT, 1.0)
+		viewport_size = Vector2i(
+			maxi(1, int(round(host_size.x / render_scale))),
+			maxi(1, int(round(host_size.y / render_scale)))
+		)
 	_game_viewport.size = viewport_size
 
 	var pixel_display: TextureRect = _shell.get_pixel_display()

@@ -352,7 +352,7 @@ func _ensure_helper_nodes() -> void:
 		material.albedo_color = Color.WHITE
 		material.albedo_texture = _painter.make_player_token_texture(256)
 		marker.set_surface_override_material(0, material)
-		marker.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		marker.rotation_degrees = Vector3(-90.0, 0.0, 180.0)
 		add_child(marker)
 	if get_node_or_null("PreviewRoot") == null:
 		var preview_root := Node3D.new()

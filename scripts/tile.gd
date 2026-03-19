@@ -171,11 +171,11 @@ func _build_geometry() -> void:
 	var face_mesh := QuadMesh.new()
 	face_mesh.size = Vector2(tile_width * 0.96, tile_depth * 0.96)
 	_back_face.mesh = face_mesh
-	_back_face.rotation.x = -PI / 2.0
+	_back_face.rotation = Vector3(-PI / 2.0, 0.0, PI)
 	_back_face.position = Vector3(0.0, tile_height * 0.5 + 0.004, 0.0)
 
 	_front_face.mesh = face_mesh.duplicate()
-	_front_face.rotation.x = PI / 2.0
+	_front_face.rotation = Vector3(PI / 2.0, 0.0, PI)
 	_front_face.position = Vector3(0.0, -tile_height * 0.5 - 0.004, 0.0)
 
 	var collision_box := BoxShape3D.new()
