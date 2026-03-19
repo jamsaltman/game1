@@ -13,14 +13,14 @@ static var ICON_NAMES := PackedStringArray([
 ])
 
 static var INK := {
-	"pusher": Color8(88, 196, 255),
-	"puller": Color8(124, 230, 145),
-	"blocker": Color8(214, 183, 95),
-	"redirector": Color8(240, 145, 97),
-	"grabber": Color8(220, 116, 171),
-	"guide": Color8(123, 188, 255),
-	"smuggler": Color8(169, 220, 112),
-	"killer": Color8(255, 101, 101),
+	"pusher": Color8(217, 103, 73),
+	"puller": Color8(215, 166, 77),
+	"blocker": Color8(120, 102, 81),
+	"redirector": Color8(177, 132, 86),
+	"grabber": Color8(164, 95, 67),
+	"guide": Color8(190, 144, 71),
+	"smuggler": Color8(207, 154, 63),
+	"killer": Color8(190, 68, 54),
 }
 
 static var LABELS := {
@@ -34,13 +34,13 @@ static var LABELS := {
 	"killer": "KL",
 }
 
-static var FACE_BG_FRONT := Color8(245, 240, 222)
-static var FACE_BG_BACK := Color8(29, 35, 44)
-static var FACE_BG_FRONT_HOVER := Color8(255, 248, 233)
-static var FACE_BG_BACK_HOVER := Color8(47, 55, 70)
+static var FACE_BG_FRONT := Color8(236, 219, 189)
+static var FACE_BG_BACK := Color8(43, 39, 36)
+static var FACE_BG_FRONT_HOVER := Color8(247, 230, 200)
+static var FACE_BG_BACK_HOVER := Color8(61, 54, 49)
 static var OUTLINE := Color8(33, 28, 24)
 static var DARK := Color8(53, 48, 41)
-static var LIGHT := Color8(255, 251, 238)
+static var LIGHT := Color8(255, 246, 225)
 
 static var GLYPHS := {
 	"B": PackedStringArray(["110", "101", "110", "101", "110"]),
@@ -185,7 +185,7 @@ static func _draw_glyph(image: Image, glyph: String, pos: Vector2i, unit: int, c
 
 
 static func _draw_card_back(image: Image, hovered: bool, unit: int, origin: Vector2i) -> void:
-	var accent := Color8(84, 94, 118) if hovered else Color8(61, 71, 90)
+	var accent := Color8(117, 100, 79) if hovered else Color8(87, 73, 59)
 	var bright := accent.lightened(0.28)
 	_grid_rect(image, origin, unit, Rect2i(2, 2, 12, 12), OUTLINE)
 	_grid_rect(image, origin, unit, Rect2i(3, 3, 10, 10), accent.darkened(0.18))

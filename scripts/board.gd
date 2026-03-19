@@ -286,10 +286,10 @@ func _ensure_helper_nodes() -> void:
 		mesh.height = 0.36
 		marker.mesh = mesh
 		var material := StandardMaterial3D.new()
-		material.albedo_color = Color8(242, 247, 255)
+		material.albedo_color = Color8(236, 224, 205)
 		material.emission_enabled = true
-		material.emission = Color8(135, 201, 255)
-		material.emission_energy_multiplier = 0.8
+		material.emission = Color8(230, 106, 82)
+		material.emission_energy_multiplier = 0.28
 		marker.set_surface_override_material(0, material)
 		add_child(marker)
 	if get_node_or_null("PreviewRoot") == null:
@@ -335,10 +335,10 @@ func _update_preview_markers() -> void:
 		marker.mesh = mesh
 		var material := StandardMaterial3D.new()
 		var is_push := String(preview.get("kind", "")) == "push"
-		material.albedo_color = Color8(89, 177, 255) if is_push else Color8(121, 217, 124)
+		material.albedo_color = Color8(220, 104, 74) if is_push else Color8(225, 176, 82)
 		material.emission_enabled = true
 		material.emission = material.albedo_color
-		material.emission_energy_multiplier = 0.5
+		material.emission_energy_multiplier = 0.2
 		marker.set_surface_override_material(0, material)
 		var midpoint := (_grid_to_world(from_pos, 0.42) + _grid_to_world(to_pos, 0.42)) * 0.5
 		marker.position = midpoint
@@ -358,9 +358,12 @@ func _update_board_base() -> void:
 	_board_base.mesh = mesh
 	_board_base.position = Vector3(0.0, 0.0, 0.0)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color8(190, 166, 114)
+	material.albedo_color = Color8(58, 50, 43)
 	material.roughness = 0.94
 	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	material.emission_enabled = true
+	material.emission = Color8(91, 75, 61)
+	material.emission_energy_multiplier = 0.06
 	_board_base.set_surface_override_material(0, material)
 
 

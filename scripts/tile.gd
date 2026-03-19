@@ -215,31 +215,31 @@ func _update_materials() -> void:
 	var is_target := bool(_visual_state.get("is_target", false))
 	var is_previewed := bool(_visual_state.get("is_previewed", false))
 	var is_selected_target := bool(_visual_state.get("is_selected_target", false))
-	var base_color := Color8(46, 54, 71)
+	var base_color := Color8(74, 64, 55) if not is_flipped else Color8(150, 124, 90)
 	if is_edge:
-		base_color = Color8(122, 103, 55)
+		base_color = Color8(171, 137, 82)
 	if is_target:
-		base_color = Color8(82, 169, 255)
+		base_color = Color8(176, 96, 70)
 	if is_previewed:
-		base_color = Color8(92, 176, 100)
+		base_color = Color8(174, 144, 92)
 	if is_selected_target:
-		base_color = Color8(255, 164, 96)
+		base_color = Color8(228, 165, 80)
 	if is_target and not is_flipped:
-		base_color = base_color.lightened(0.15)
+		base_color = base_color.lightened(0.08)
 	if _hovered:
-		base_color = base_color.lightened(0.22)
+		base_color = base_color.lightened(0.18)
 	if _feedback_strength > 0.0:
 		base_color = base_color.lerp(_feedback_color, _feedback_strength)
 
 	_base_material.albedo_color = base_color
-	_base_material.emission = base_color.lightened(0.28)
-	_base_material.emission_energy_multiplier = 0.18 if not _hovered else 0.38
+	_base_material.emission = base_color.lightened(0.1)
+	_base_material.emission_energy_multiplier = 0.08 if not _hovered else 0.18
 	_back_material.albedo_color = Color.WHITE
 	_front_material.albedo_color = Color.WHITE
-	_back_material.emission = Color8(255, 245, 210) if _hovered else Color8(0, 0, 0, 0)
-	_front_material.emission = Color8(255, 245, 210) if _hovered else Color8(0, 0, 0, 0)
-	_back_material.emission_energy_multiplier = 0.35 if _hovered else 0.0
-	_front_material.emission_energy_multiplier = 0.35 if _hovered else 0.0
+	_back_material.emission = Color8(255, 232, 192) if _hovered else Color8(0, 0, 0, 0)
+	_front_material.emission = Color8(255, 232, 192) if _hovered else Color8(0, 0, 0, 0)
+	_back_material.emission_energy_multiplier = 0.2 if _hovered else 0.0
+	_front_material.emission_energy_multiplier = 0.2 if _hovered else 0.0
 	_back_material.albedo_texture = _icon_library.make_face_texture(icon_id, false, _hovered, face_texture_size)
 	_front_material.albedo_texture = _icon_library.make_face_texture(icon_id, true, _hovered, face_texture_size)
 

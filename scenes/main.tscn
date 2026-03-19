@@ -6,10 +6,10 @@
 
 [sub_resource type="Environment" id="1"]
 background_mode = 1
-background_color = Color(0.737255, 0.831373, 0.905882, 1)
+background_color = Color(0.0941176, 0.0823529, 0.0745098, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.956863, 0.913725, 0.827451, 1)
-ambient_light_energy = 1.4
+ambient_light_color = Color(0.964706, 0.886275, 0.772549, 1)
+ambient_light_energy = 1.1
 tonemap_mode = 2
 
 [sub_resource type="ShaderMaterial" id="2"]
@@ -42,13 +42,14 @@ size = 7.5
 
 [node name="SunLight" type="DirectionalLight3D" parent="GameViewport/World"]
 transform = Transform3D(0.906308, -0.365998, -0.211309, 0, 0.500001, -0.866025, 0.422618, 0.784886, 0.453153, 0, 7, 0)
-light_energy = 1.5
+light_color = Color(1, 0.909804, 0.772549, 1)
+light_energy = 1.2
 shadow_enabled = true
 
 [node name="FillLight" type="OmniLight3D" parent="GameViewport/World"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.5, 0)
-light_color = Color(0.984314, 0.886275, 0.776471, 1)
-light_energy = 1.2
+light_color = Color(0.988235, 0.815686, 0.658824, 1)
+light_energy = 0.8
 omni_range = 18.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="GameViewport/World"]
