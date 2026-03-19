@@ -58,6 +58,7 @@ func reset_board() -> void:
 			_tile_data.append(tile_data)
 
 	_update_board_base()
+	fit_camera(get_viewport().get_camera_3d(), get_viewport().size)
 
 
 func update_hover(screen_pos: Vector2, active: bool) -> void:
@@ -132,3 +133,21 @@ func _update_board_base() -> void:
 	material.roughness = 0.94
 	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_board_base.set_surface_override_material(0, material)
+
+
+func fit_camera(camera: Camera3D, viewport_size: Vector2) -> void:
+	if camera == null:
+		return
+
+	var safe_size := Vector2(maxf(viewport_size.x, 1.0), maxf(viewport_size.y, 1.0))
+	var board_width := maxf((grid_width - 1) * tile_spacing + tile_size, tile_size)
+	var board_height := maxf((grid_height - 1) * tile_spacing + tile_size, tile_size)
+	var aspect_ratio := safe_size.x / safe_size.y
+	var framing_padding := 1.2
+	var required_height := board_height + framing_padding
+	var required_width_as_height := (board_width + framing_padding) / maxf(aspect_ratio, 0.001)
+
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = maxf(required_height, required_width_as_height)
+	camera.position = Vector3(0.0, 8.4, 0.0)
+	camera.look_at(Vector3.ZERO, Vector3.BACK)

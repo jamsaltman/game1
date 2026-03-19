@@ -1,24 +1,16 @@
 extends Control
 
-const BASE_RENDER_SIZE := Vector2i(480, 270)
-
 @onready var _game_viewport: SubViewport = $GameViewport
-@onready var _pixel_display: TextureRect = $UI/PixelCenter/PixelDisplay
+@onready var _pixel_display: TextureRect = $UI/PixelDisplay
 @onready var _board = $GameViewport/World/Board
-
-var _display_scale: int = 1
+@onready var _camera: Camera3D = $GameViewport/World/Camera3D
 
 
 func _ready() -> void:
-	_game_viewport.size = BASE_RENDER_SIZE
 	_game_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 
 	_pixel_display.texture = _game_viewport.get_texture()
 	_pixel_display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-
-	var filter_material := _pixel_display.material as ShaderMaterial
-	if filter_material != null:
-		filter_material.set_shader_parameter("source_size", Vector2(BASE_RENDER_SIZE))
 
 	get_viewport().size_changed.connect(_resize_display)
 	_resize_display()
@@ -42,13 +34,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _resize_display() -> void:
 	var window_size := get_viewport_rect().size
-	_display_scale = maxi(1, int(floor(min(window_size.x / float(BASE_RENDER_SIZE.x), window_size.y / float(BASE_RENDER_SIZE.y)))))
-	var scaled_size := Vector2(BASE_RENDER_SIZE * _display_scale)
-	_pixel_display.custom_minimum_size = scaled_size
+	var viewport_size := Vector2i(maxi(1, int(window_size.x)), maxi(1, int(window_size.y)))
+	_game_viewport.size = viewport_size
 
 	var filter_material := _pixel_display.material as ShaderMaterial
 	if filter_material != null:
-		filter_material.set_shader_parameter("display_scale", float(_display_scale))
+		filter_material.set_shader_parameter("source_size", Vector2(viewport_size))
+		filter_material.set_shader_parameter("display_scale", 1.0)
+
+	_board.fit_camera(_camera, window_size)
 
 
 func _get_pointer_data() -> Dictionary:
@@ -60,9 +54,9 @@ func _get_pointer_data() -> Dictionary:
 			"position": Vector2.ZERO,
 		}
 
-	var local_position := (mouse_position - display_rect.position) / float(_display_scale)
-	local_position.x = clampf(local_position.x, 0.0, BASE_RENDER_SIZE.x - 1.0)
-	local_position.y = clampf(local_position.y, 0.0, BASE_RENDER_SIZE.y - 1.0)
+	var local_position := mouse_position - display_rect.position
+	local_position.x = clampf(local_position.x, 0.0, _game_viewport.size.x - 1.0)
+	local_position.y = clampf(local_position.y, 0.0, _game_viewport.size.y - 1.0)
 	return {
 		"inside": true,
 		"position": local_position,
