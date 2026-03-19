@@ -1,0 +1,134 @@
+class_name Board
+extends Node3D
+
+const TileDataRef = preload("res://scripts/flip_tile_data.gd")
+
+@export_range(2, 10, 1) var grid_width: int = 5
+@export_range(2, 10, 1) var grid_height: int = 4
+@export_range(1.0, 2.0, 0.01) var tile_spacing: float = 1.28
+@export var tile_size: float = 1.0
+@export var icon_pool: PackedStringArray = PackedStringArray([
+	"sun",
+	"leaf",
+	"wave",
+	"gem",
+	"bolt",
+	"moon",
+])
+@export var random_seed: int = 0
+@export var tile_scene: PackedScene = preload("res://scenes/tile.tscn")
+
+var _rng := RandomNumberGenerator.new()
+var _tile_data: Array = []
+var _tiles: Array = []
+var _hovered_tile = null
+
+@onready var _tiles_root: Node3D = $Tiles
+@onready var _board_base: MeshInstance3D = $BoardBase
+
+
+func _ready() -> void:
+	reset_board()
+
+
+func reset_board() -> void:
+	_seed_rng()
+	_clear_tiles()
+	_tile_data.clear()
+	_tiles.clear()
+
+	var offset_x := -((grid_width - 1) * tile_spacing) * 0.5
+	var offset_z := -((grid_height - 1) * tile_spacing) * 0.5
+
+	for row in range(grid_height):
+		for column in range(grid_width):
+			var tile = tile_scene.instantiate()
+			var icon_id := icon_pool[_rng.randi_range(0, icon_pool.size() - 1)]
+			var tile_data = TileDataRef.new()
+			tile_data.icon_id = icon_id
+			tile_data.is_flipped = false
+
+			tile.tile_width = tile_size
+			tile.tile_depth = tile_size
+			tile.position = Vector3(offset_x + column * tile_spacing, 0.18, offset_z + row * tile_spacing)
+			tile.set_tile_data(tile_data)
+
+			_tiles_root.add_child(tile)
+			_tiles.append(tile)
+			_tile_data.append(tile_data)
+
+	_update_board_base()
+
+
+func update_hover(screen_pos: Vector2, active: bool) -> void:
+	var next_tile = _pick_tile(screen_pos) if active else null
+
+	if _hovered_tile == next_tile:
+		return
+
+	if is_instance_valid(_hovered_tile):
+		_hovered_tile.set_hovered(false)
+
+	_hovered_tile = next_tile
+
+	if is_instance_valid(_hovered_tile):
+		_hovered_tile.set_hovered(true)
+
+
+func click_tile(screen_pos: Vector2) -> void:
+	var tile = _pick_tile(screen_pos)
+	if tile == null:
+		return
+	tile.flip_to_front()
+
+
+func _pick_tile(screen_pos: Vector2):
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return null
+
+	var ray_origin := camera.project_ray_origin(screen_pos)
+	var ray_end := ray_origin + camera.project_ray_normal(screen_pos) * 100.0
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+	if result.is_empty():
+		return null
+
+	var collider = result.get("collider")
+	if collider != null and collider.has_method("flip_to_front") and collider.has_method("set_hovered"):
+		return collider
+	return null
+
+
+func _seed_rng() -> void:
+	if random_seed == 0:
+		_rng.randomize()
+	else:
+		_rng.seed = random_seed
+
+
+func _clear_tiles() -> void:
+	if is_instance_valid(_hovered_tile):
+		_hovered_tile.set_hovered(false)
+	_hovered_tile = null
+
+	for child in _tiles_root.get_children():
+		_tiles_root.remove_child(child)
+		child.queue_free()
+
+
+func _update_board_base() -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(
+		maxf(grid_width * tile_spacing, tile_size) + 0.9,
+		0.24,
+		maxf(grid_height * tile_spacing, tile_size) + 0.9
+	)
+	_board_base.mesh = mesh
+	_board_base.position = Vector3(0.0, 0.0, 0.0)
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color8(203, 176, 118)
+	material.roughness = 0.94
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_board_base.set_surface_override_material(0, material)
