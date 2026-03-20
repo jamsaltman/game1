@@ -60,7 +60,6 @@ extends Resource
 }
 @export var role_portrait_assets: Dictionary = {
 	"pusher": "pusher",
-	"puller": "crowd",
 	"blocker": "guard",
 	"redirector": "escort",
 	"grabber": "anchor",
