@@ -45,6 +45,9 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_action_requested(action_id: String) -> void:
+	if action_id == "stay":
+		_board.try_stay()
+		return
 	_board.set_selected_action(action_id)
 
 

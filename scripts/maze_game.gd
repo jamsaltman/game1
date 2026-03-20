@@ -119,6 +119,14 @@ func get_legal_flip_positions() -> Array[Vector2i]:
 
 func get_action_buttons() -> Array[Dictionary]:
 	var buttons: Array[Dictionary] = []
+	buttons.append({
+		"id": "stay",
+		"label": "Stay",
+		"selected": selected_action_id == "stay",
+		"enabled": phase == "flip" and player.alive and not run.awaiting_upgrade_choice,
+		"icon_id": "guard",
+		"accent_color": _theme_manifest.get_color("muted"),
+	})
 	for upgrade_id in upgrade_definitions.keys():
 		if not player.unlocked_upgrades.get(upgrade_id, false):
 			continue
@@ -177,6 +185,9 @@ func set_selected_action(action_id: String) -> bool:
 	if action_id == "flip":
 		selected_action_id = "flip"
 		return true
+	if action_id == "stay":
+		selected_action_id = "stay"
+		return true
 	if not player.unlocked_upgrades.get(action_id, false):
 		return false
 	var charge_value = player.board_charges.get(action_id, 0)
@@ -206,6 +217,8 @@ func try_flip_cell(pos: Vector2i) -> Dictionary:
 	match selected_action_id:
 		"flip":
 			return _execute_flip(pos, 1)
+		"stay":
+			return _execute_stay()
 		"peek":
 			return _execute_peek(pos)
 		"remote_flip":
@@ -214,6 +227,12 @@ func try_flip_cell(pos: Vector2i) -> Dictionary:
 			return _execute_step(pos)
 		_:
 			return _make_action_result(false)
+
+
+func try_stay() -> Dictionary:
+	if phase != "flip" or run.awaiting_upgrade_choice or not player.alive:
+		return _make_action_result(false)
+	return _execute_stay()
 
 
 func note_invalid_click() -> void:
@@ -226,6 +245,8 @@ func note_invalid_click() -> void:
 	match selected_action_id:
 		"flip":
 			status_text = "Click a hidden tile next to the player."
+		"stay":
+			status_text = "Press Stay to end the turn without revealing."
 		"peek":
 			status_text = "Peek only works on highlighted adjacent hidden tiles."
 		"remote_flip":
@@ -498,6 +519,23 @@ func _execute_step(pos: Vector2i) -> Dictionary:
 	phase = "end_check"
 	_evaluate_end_state(false)
 	_finalize_action([], moves, false)
+	return _make_action_result(true)
+
+
+func _execute_stay() -> Dictionary:
+	if phase != "flip" or run.awaiting_upgrade_choice or not player.alive:
+		return _make_action_result(false)
+	selected_action_id = "flip"
+	run.turn_index += 1
+	_push_event("You stayed put and let the board move.")
+	phase = "reactive"
+	phase = "active"
+	var intents := _collect_active_intents()
+	phase = "settlement"
+	var movement_steps := _resolve_intents(intents)
+	phase = "end_check"
+	var used_bonus_flip := _evaluate_end_state(false)
+	_finalize_action([], movement_steps, used_bonus_flip)
 	return _make_action_result(true)
 
 
