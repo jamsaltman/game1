@@ -749,12 +749,6 @@ func _evaluate_end_state(consumed_flip: bool) -> bool:
 		phase = "loss"
 		status_text = failure_reason
 		return false
-	if _is_trapped():
-		player.alive = false
-		failure_reason = "You are trapped with no legal actions left."
-		status_text = failure_reason
-		_push_event(failure_reason)
-		return false
 	if consumed_flip and player.unlocked_upgrades.get("flip_again", false) and int(player.board_charges.get("flip_again", 0)) > 0:
 		if not get_legal_flip_positions().is_empty():
 			player.board_charges["flip_again"] = 0
