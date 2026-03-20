@@ -517,7 +517,7 @@ func _execute_flip(pos: Vector2i, flip_range: int, consume_remote: bool = false)
 	var movement_steps: Array[Dictionary] = []
 	var used_bonus_flip := false
 
-	_reveal_cell(cell, revealed_positions, false)
+	_reveal_cell(cell, revealed_positions, true)
 	_handle_on_reveal(cell, revealed_positions)
 
 	phase = "reactive"
