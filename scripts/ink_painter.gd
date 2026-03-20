@@ -402,6 +402,8 @@ func _draw_symbol(image: Image, rect: Rect2i, icon_id: String, color: Color) -> 
 			_draw_arrow(image, rect, Vector2.RIGHT, color)
 		"anchor":
 			_draw_anchor(image, rect, color)
+		"undo":
+			_draw_undo_arrow(image, rect, color)
 		"remote_flip":
 			_draw_bent_arrow(image, rect, color)
 		"reset":
@@ -420,6 +422,8 @@ func _draw_symbol(image: Image, rect: Rect2i, icon_id: String, color: Color) -> 
 			_draw_eye(image, rect, color)
 		"smuggler":
 			_draw_smuggler_mark(image, rect, color)
+		"rewinder":
+			_draw_undo_arrow(image, rect, color)
 		"killer":
 			_draw_crosshair(image, rect, color)
 		"conduit":
@@ -463,6 +467,12 @@ func _draw_bent_arrow(image: Image, rect: Rect2i, color: Color) -> void:
 	_fill_rect(image, Rect2i(rect.position.x + rect.size.x / 5, rect.position.y + rect.size.y / 2, rect.size.x / 2, 4), color)
 	_fill_rect(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 5, 4, rect.size.y / 2), color)
 	_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 6, rect.size.x / 3, rect.size.y / 3), Vector2.RIGHT, color)
+
+
+func _draw_undo_arrow(image: Image, rect: Rect2i, color: Color) -> void:
+	_fill_rect(image, Rect2i(rect.position.x + rect.size.x / 4, rect.position.y + rect.size.y / 2, rect.size.x / 2, 4), color)
+	_fill_rect(image, Rect2i(rect.position.x + rect.size.x / 4, rect.position.y + rect.size.y / 3, 4, rect.size.y / 6 + 2), color)
+	_draw_arrow(image, Rect2i(rect.position.x + rect.size.x / 8, rect.position.y + rect.size.y / 4, rect.size.x / 3, rect.size.y / 2), Vector2.LEFT, color)
 
 
 func _draw_eye(image: Image, rect: Rect2i, color: Color) -> void:

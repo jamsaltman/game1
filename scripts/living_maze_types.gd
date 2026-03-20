@@ -68,6 +68,23 @@ class RunState:
 		return copy
 
 
+class GameSnapshot:
+	extends RefCounted
+
+	var cells: Array = []
+	var player: PlayerState = PlayerState.new()
+	var run: RunState = RunState.new()
+	var phase: String = "flip"
+	var status_text: String = ""
+	var failure_reason: String = ""
+	var last_role_id: String = ""
+	var event_log: Array[String] = []
+	var selected_action_id: String = "flip"
+	var board_cleared: bool = false
+	var turn_report: Dictionary = {}
+	var rng_state: int = 0
+
+
 class MovementIntent:
 	extends RefCounted
 

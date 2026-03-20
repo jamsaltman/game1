@@ -85,6 +85,19 @@ func try_stay() -> void:
 	_resolve_visual_report(report)
 
 
+func try_undo() -> void:
+	if _game == null or _resolving_turn:
+		return
+	var report: Dictionary = _game.try_undo()
+	if not bool(report.get("ok", false)):
+		_game.note_invalid_click()
+		_sync_board_visuals()
+		emit_signal("state_changed")
+		return
+	_sync_board_visuals()
+	emit_signal("state_changed")
+
+
 func update_hover(screen_pos: Vector2, active: bool) -> void:
 	if _resolving_turn:
 		active = false

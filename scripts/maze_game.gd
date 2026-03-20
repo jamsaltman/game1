@@ -29,6 +29,7 @@ var event_log: Array[String] = []
 var selected_action_id: String = "flip"
 var board_cleared: bool = false
 var turn_report: Dictionary = {}
+var history_snapshots: Array = []
 var _theme_manifest = ThemeManifestRef
 
 
@@ -47,6 +48,7 @@ func start_new_run(seed: int = random_seed) -> void:
 	run = Types.RunState.new()
 	player = Types.PlayerState.new()
 	player.unlocked_upgrades.clear()
+	history_snapshots.clear()
 	start_next_board(false)
 
 
@@ -66,6 +68,7 @@ func start_next_board(increment_depth: bool = true) -> void:
 	status_text = "Flip someone nearby and let the crowd move you."
 	phase = "flip"
 	event_log.clear()
+	history_snapshots.clear()
 	_generate_board()
 	_push_event("Board %d begins. Reach any edge to escape." % run.board_depth)
 	_refresh_status_text()
@@ -119,6 +122,14 @@ func get_legal_flip_positions() -> Array[Vector2i]:
 
 func get_action_buttons() -> Array[Dictionary]:
 	var buttons: Array[Dictionary] = []
+	buttons.append({
+		"id": "undo",
+		"label": "Undo (%d)" % int(player.board_charges.get("undo", 0)),
+		"selected": false,
+		"enabled": can_undo(),
+		"icon_id": "undo",
+		"accent_color": _theme_manifest.get_color("undo", _theme_manifest.get_color("highlight")),
+	})
 	buttons.append({
 		"id": "stay",
 		"label": "Stay",
@@ -241,6 +252,24 @@ func try_stay() -> Dictionary:
 	return _execute_stay()
 
 
+func can_undo() -> bool:
+	return int(player.board_charges.get("undo", 0)) > 0 and not history_snapshots.is_empty()
+
+
+func try_undo() -> Dictionary:
+	if not can_undo():
+		return _make_action_result(false)
+	var current_undo := int(player.board_charges.get("undo", 0))
+	var snapshot: Types.GameSnapshot = history_snapshots.pop_back()
+	_restore_snapshot(snapshot)
+	player.board_charges["undo"] = max(current_undo - 1, 0)
+	selected_action_id = "flip"
+	_push_event("Undo rewinds the last turn.")
+	_refresh_status_text()
+	_refresh_turn_report([], [], false)
+	return _make_action_result(true)
+
+
 func note_invalid_click() -> void:
 	if run.awaiting_upgrade_choice:
 		status_text = "Choose an upgrade to continue."
@@ -358,6 +387,7 @@ func force_board(role_map: Dictionary, hidden_positions: Array = [], board_depth
 	selected_action_id = "flip"
 	phase = "flip"
 	event_log.clear()
+	history_snapshots.clear()
 	_refresh_status_text()
 	_refresh_turn_report([], [], false)
 
@@ -371,6 +401,7 @@ func _build_role_definitions() -> void:
 	_add_role("grabber", "Grabber", "grabber", "Holds you in place once you end beside it.", "reactive", 2, 2, 0)
 	_add_role("guide", "Guide", "guide", "Reveals up to 2 nearby hidden people.", "on_reveal", 2, 1, 0)
 	_add_role("smuggler", "Smuggler", "smuggler", "Grants a one-time blocker bypass.", "on_reveal", 2, 1, 0)
+	_add_role("rewinder", "Rewinder", "rewinder", "Grants 1 undo charge when revealed.", "on_reveal", 2, 1, 0)
 	_add_role("killer", "Killer", "killer", "Kills you if you enter its tile.", "reactive", 1, 1, 0)
 
 
@@ -396,7 +427,7 @@ func _generate_board() -> void:
 		var transport_pos: Vector2i = transport_slots[0]
 		var help_pos: Vector2i = transport_slots[1]
 		var transport_roles := ["pusher", "puller"]
-		var help_roles := ["guide", "smuggler"]
+		var help_roles := ["guide", "smuggler", "rewinder"]
 		var assigned_roles: Dictionary = {
 			transport_pos: transport_roles[rng.randi_range(0, transport_roles.size() - 1)],
 			help_pos: help_roles[rng.randi_range(0, help_roles.size() - 1)],
@@ -440,6 +471,7 @@ func _pick_role_for_position(pos: Vector2i, distance: int, counts: Dictionary) -
 		"puller": true,
 		"guide": true,
 		"smuggler": true,
+		"rewinder": true,
 		"blocker": true,
 	}
 	for role_id in role_definitions.keys():
@@ -472,7 +504,7 @@ func _is_generation_acceptable() -> bool:
 			continue
 		if cell.role_id == "pusher" or cell.role_id == "puller":
 			has_transport = true
-		if cell.role_id == "guide" or cell.role_id == "smuggler":
+		if cell.role_id == "guide" or cell.role_id == "smuggler" or cell.role_id == "rewinder":
 			has_help = true
 		if cell.role_id == "killer":
 			return false
@@ -487,6 +519,7 @@ func _execute_peek(pos: Vector2i) -> Dictionary:
 	var cell = get_cell(pos)
 	if cell == null or not cell.hidden:
 		return _make_action_result(false)
+	_push_snapshot()
 	player.board_charges["peek"] = max(int(player.board_charges.get("peek", 0)) - 1, 0)
 	cell.previewed = true
 	last_role_id = cell.role_id
@@ -507,6 +540,7 @@ func _execute_step(pos: Vector2i) -> Dictionary:
 		var next_distance := _manhattan_distance(pos, player.grabbed_by)
 		if next_distance > current_distance:
 			return _make_action_result(false)
+	_push_snapshot()
 	player.board_charges["step"] = max(int(player.board_charges.get("step", 0)) - 1, 0)
 	selected_action_id = "flip"
 	var moves := [{
@@ -536,6 +570,7 @@ func _execute_daze(pos: Vector2i) -> Dictionary:
 	var cell = get_cell(pos)
 	if cell == null or cell.is_center or cell.hidden:
 		return _make_action_result(false)
+	_push_snapshot()
 	player.board_charges["daze"] = max(int(player.board_charges.get("daze", 0)) - 1, 0)
 	selected_action_id = "flip"
 	cell.dazed_until_turn = run.turn_index + 2
@@ -548,6 +583,7 @@ func _execute_daze(pos: Vector2i) -> Dictionary:
 func _execute_stay() -> Dictionary:
 	if phase != "flip" or run.awaiting_upgrade_choice or not player.alive:
 		return _make_action_result(false)
+	_push_snapshot()
 	selected_action_id = "flip"
 	run.turn_index += 1
 	_push_event("You stayed put and let the board move.")
@@ -569,6 +605,7 @@ func _execute_flip(pos: Vector2i, flip_range: int, consume_remote: bool = false)
 	var cell = get_cell(pos)
 	if cell == null or cell.is_center or not cell.hidden:
 		return _make_action_result(false)
+	_push_snapshot()
 	if consume_remote:
 		player.board_charges["remote_flip"] = max(int(player.board_charges.get("remote_flip", 0)) - 1, 0)
 	selected_action_id = "flip"
@@ -622,6 +659,9 @@ func _handle_on_reveal(cell, revealed_positions: Array[Dictionary]) -> void:
 		"smuggler":
 			player.board_charges["bypass"] = 1
 			_push_event("Smuggler grants a blocker bypass.")
+		"rewinder":
+			player.board_charges["undo"] = int(player.board_charges.get("undo", 0)) + 1
+			_push_event("Rewinder grants 1 undo charge.")
 
 
 func _collect_active_intents() -> Array:
@@ -869,6 +909,7 @@ func _get_daze_targets() -> Array[Vector2i]:
 
 func _make_board_charges() -> Dictionary:
 	return {
+		"undo": 0,
 		"peek": 1 if player.unlocked_upgrades.get("peek", false) else 0,
 		"anchor": 1 if player.unlocked_upgrades.get("anchor", false) else 0,
 		"anchor_ready": false,
@@ -916,6 +957,9 @@ func _refresh_status_text() -> void:
 	status_text = "%d legal flips.%s%s" % [legal_flips, grab_text, anchor_text]
 	if bypass > 0:
 		status_text += " Bypass ready."
+	var undo_charges := int(player.board_charges.get("undo", 0))
+	if undo_charges > 0:
+		status_text += " Undo %d." % undo_charges
 
 
 func _get_pressure_value() -> int:
@@ -1077,6 +1121,8 @@ func get_log_entries(lines: Array = []) -> Array[Dictionary]:
 			icon_id = "guide"
 		elif text.contains("Smuggler"):
 			icon_id = "smuggler"
+		elif text.contains("Undo") or text.contains("Rewinder"):
+			icon_id = "undo"
 		elif text.contains("killer") or text.contains("Killer"):
 			icon_id = "killer"
 		elif text.contains("Anchor"):
@@ -1130,3 +1176,43 @@ func _format_charge_label(upgrade_id: String) -> String:
 	if upgrade_id == "anchor":
 		return "ready" if int(player.board_charges.get(upgrade_id, 0)) > 0 or bool(player.board_charges.get("anchor_ready", false)) else "spent"
 	return "%d left" % int(player.board_charges.get(upgrade_id, 0))
+
+
+func _push_snapshot() -> void:
+	history_snapshots.append(_capture_snapshot())
+
+
+func _capture_snapshot() -> Types.GameSnapshot:
+	var snapshot := Types.GameSnapshot.new()
+	snapshot.cells = []
+	for cell in cells:
+		snapshot.cells.append(cell.duplicate_state())
+	snapshot.player = player.duplicate_state()
+	snapshot.run = run.duplicate_state()
+	snapshot.phase = phase
+	snapshot.status_text = status_text
+	snapshot.failure_reason = failure_reason
+	snapshot.last_role_id = last_role_id
+	snapshot.event_log = event_log.duplicate()
+	snapshot.selected_action_id = selected_action_id
+	snapshot.board_cleared = board_cleared
+	snapshot.turn_report = turn_report.duplicate(true)
+	snapshot.rng_state = rng.state
+	return snapshot
+
+
+func _restore_snapshot(snapshot: Types.GameSnapshot) -> void:
+	cells = []
+	for cell in snapshot.cells:
+		cells.append(cell.duplicate_state())
+	player = snapshot.player.duplicate_state()
+	run = snapshot.run.duplicate_state()
+	phase = snapshot.phase
+	status_text = snapshot.status_text
+	failure_reason = snapshot.failure_reason
+	last_role_id = snapshot.last_role_id
+	event_log = snapshot.event_log.duplicate()
+	selected_action_id = snapshot.selected_action_id
+	board_cleared = snapshot.board_cleared
+	turn_report = snapshot.turn_report.duplicate(true)
+	rng.state = snapshot.rng_state

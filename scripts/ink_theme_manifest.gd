@@ -22,7 +22,9 @@ extends Resource
 	"grabber": Color8(180, 106, 86),
 	"guide": Color8(216, 169, 97),
 	"smuggler": Color8(230, 177, 84),
+	"rewinder": Color8(168, 186, 118),
 	"killer": Color8(230, 80, 68),
+	"undo": Color8(168, 186, 118),
 	"step": Color8(212, 171, 114),
 	"peek": Color8(214, 196, 140),
 	"remote_flip": Color8(224, 134, 78),
@@ -56,15 +58,17 @@ extends Resource
 	"grabber": "GRABBER",
 	"guide": "GUIDE",
 	"smuggler": "SMUGGLER",
+	"rewinder": "REWINDER",
 	"killer": "KILLER",
 }
 @export var role_portrait_assets: Dictionary = {
 	"pusher": "pusher",
 	"blocker": "guard",
-	"redirector": "escort",
+	"redirector": "redirector",
 	"grabber": "anchor",
 	"guide": "revealer",
-	"smuggler": "escort",
+	"smuggler": "smuggler",
+	"rewinder": "rewinder",
 	"killer": "chaser",
 }
 @export var player_portrait_asset: String = "player"
@@ -73,6 +77,7 @@ extends Resource
 	"peek": "OBSERVE",
 	"step": "STEP",
 	"anchor": "ANCHOR",
+	"undo": "UNDO",
 	"remote_flip": "REMOTE FLIP",
 	"daze": "DAZE",
 	"reset": "RESET RUN",

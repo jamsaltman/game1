@@ -39,6 +39,9 @@ func _input(event: InputEvent) -> void:
 		if event.keycode == KEY_R:
 			_board.reset_board()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_Z:
+			_board.try_undo()
+			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_SPACE:
 			_on_action_requested("stay")
 			get_viewport().set_input_as_handled()
@@ -50,6 +53,9 @@ func _input(event: InputEvent) -> void:
 func _on_action_requested(action_id: String) -> void:
 	if action_id == "stay":
 		_board.try_stay()
+		return
+	if action_id == "undo":
+		_board.try_undo()
 		return
 	_board.set_selected_action(action_id)
 

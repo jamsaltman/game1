@@ -23,6 +23,8 @@ func _run_tests() -> void:
 	_test_smuggler_bypass_consumes_charge()
 	_test_killer_causes_loss()
 	_test_guide_reveal_delays_activation()
+	_test_rewinder_grants_undo()
+	_test_undo_rewinds_last_action()
 	_test_escape_offers_upgrades()
 
 
@@ -42,7 +44,7 @@ func _test_generation_safety() -> void:
 		_assert_true(cell.role_id != "killer", "generation keeps killers out of the first ring")
 		if cell.role_id == "pusher" or cell.role_id == "puller":
 			has_transport = true
-		if cell.role_id == "guide" or cell.role_id == "smuggler":
+		if cell.role_id == "guide" or cell.role_id == "smuggler" or cell.role_id == "rewinder":
 			has_help = true
 	_assert_true(has_transport, "generation guarantees at least one transport role in the first ring")
 	_assert_true(has_help, "generation guarantees at least one help role in the first ring")
@@ -94,6 +96,28 @@ func _test_guide_reveal_delays_activation() -> void:
 	var reveal_count := int(report.get("reveals", []).size())
 	_assert_true(reveal_count >= 2, "guide reveals nearby hidden cards immediately")
 	_assert_eq(game.get_cell(Vector2i(3, 1)).activates_on_turn, 2, "guide-revealed roles wait until the next turn")
+
+
+func _test_rewinder_grants_undo() -> void:
+	var game = _make_blank_game()
+	_set_role(game, Vector2i(3, 2), "rewinder", true)
+	var report: Dictionary = game.try_flip_cell(Vector2i(3, 2))
+	_assert_true(bool(report.get("ok", false)), "rewinder can be revealed normally")
+	_assert_eq(int(game.player.board_charges.get("undo", -1)), 1, "rewinder grants one undo charge on reveal")
+
+
+func _test_undo_rewinds_last_action() -> void:
+	var game = _make_blank_game()
+	_set_role(game, Vector2i(2, 3), "pusher", false)
+	_set_role(game, Vector2i(3, 2), "rewinder", true)
+	game.try_flip_cell(Vector2i(3, 2))
+	_assert_eq(game.player.position, Vector2i(4, 3), "rewinder turn still resolves board movement")
+	var undo_report: Dictionary = game.try_undo()
+	_assert_true(bool(undo_report.get("ok", false)), "undo succeeds after rewinder grants a charge")
+	_assert_eq(game.player.position, Vector2i(3, 3), "undo restores the prior player position")
+	_assert_true(game.get_cell(Vector2i(3, 2)).hidden, "undo restores the revealed rewinder to hidden")
+	_assert_eq(int(game.player.board_charges.get("undo", -1)), 0, "undo spends the granted charge")
+	_assert_eq(game.run.turn_index, 0, "undo restores the previous turn index")
 
 
 func _test_escape_offers_upgrades() -> void:
