@@ -130,11 +130,13 @@ func get_action_buttons() -> Array[Dictionary]:
 	for upgrade_id in upgrade_definitions.keys():
 		if not player.unlocked_upgrades.get(upgrade_id, false):
 			continue
+		if not upgrade_definitions.has(upgrade_id):
+			continue
 		var charge_value = player.board_charges.get(upgrade_id, 0)
 		var enabled := false
 		if phase == "flip" and player.alive and not run.awaiting_upgrade_choice:
 			match upgrade_id:
-				"peek", "step", "remote_flip":
+				"peek", "step", "remote_flip", "daze":
 					enabled = charge_value > 0 and not get_valid_targets_for_action(upgrade_id).is_empty()
 				"anchor":
 					enabled = charge_value > 0 and not bool(player.board_charges.get("anchor_ready", false))
@@ -161,6 +163,8 @@ func get_valid_targets_for_action(action_id: String) -> Array[Vector2i]:
 			return _get_flip_positions_for_range(2, true)
 		"step":
 			return _get_step_targets()
+		"daze":
+			return _get_daze_targets()
 		_:
 			return []
 
@@ -192,7 +196,7 @@ func set_selected_action(action_id: String) -> bool:
 		return false
 	var charge_value = player.board_charges.get(action_id, 0)
 	match action_id:
-		"peek", "step", "remote_flip":
+		"peek", "step", "remote_flip", "daze":
 			if charge_value <= 0:
 				return false
 			selected_action_id = action_id
@@ -225,6 +229,8 @@ func try_flip_cell(pos: Vector2i) -> Dictionary:
 			return _execute_flip(pos, 2, true)
 		"step":
 			return _execute_step(pos)
+		"daze":
+			return _execute_daze(pos)
 		_:
 			return _make_action_result(false)
 
@@ -374,7 +380,7 @@ func _build_upgrade_definitions() -> void:
 	_add_upgrade("anchor", "Anchor", "Once per board, cancel the next forced move.", "instant")
 	_add_upgrade("step", "Step", "Once per board, move 1 tile onto a safe revealed tile.", "cell")
 	_add_upgrade("remote_flip", "Remote Flip", "Once per board, flip a hidden tile at orthogonal range 2.", "cell")
-	_add_upgrade("flip_again", "Second Sight", "Once per board, your first flip gives you a bonus extra flip.", "passive")
+	_add_upgrade("daze", "Daze", "Once per board, daze an adjacent revealed tile so it skips its next round.", "cell")
 
 
 func _generate_board() -> void:
@@ -522,6 +528,23 @@ func _execute_step(pos: Vector2i) -> Dictionary:
 	return _make_action_result(true)
 
 
+func _execute_daze(pos: Vector2i) -> Dictionary:
+	if selected_action_id != "daze":
+		return _make_action_result(false)
+	if not get_valid_targets_for_action("daze").has(pos):
+		return _make_action_result(false)
+	var cell = get_cell(pos)
+	if cell == null or cell.is_center or cell.hidden:
+		return _make_action_result(false)
+	player.board_charges["daze"] = max(int(player.board_charges.get("daze", 0)) - 1, 0)
+	selected_action_id = "flip"
+	cell.dazed_until_turn = run.turn_index + 2
+	_push_event("Dazed %s at %s. It will skip its next round." % [get_role_name(cell.role_id), cell.grid_position])
+	status_text = "Daze used. Flip or use another ability."
+	_refresh_turn_report([], [], false)
+	return _make_action_result(true)
+
+
 func _execute_stay() -> Dictionary:
 	if phase != "flip" or run.awaiting_upgrade_choice or not player.alive:
 		return _make_action_result(false)
@@ -606,6 +629,8 @@ func _collect_active_intents() -> Array:
 	var snapshot := player.position
 	for cell in _get_row_major_cells():
 		if cell.hidden or cell.is_center or cell.activates_on_turn > run.turn_index:
+			continue
+		if cell.dazed_until_turn > run.turn_index:
 			continue
 		if not _is_orthogonally_adjacent(cell.grid_position, snapshot):
 			continue
@@ -830,6 +855,18 @@ func _get_step_targets() -> Array[Vector2i]:
 	return targets
 
 
+func _get_daze_targets() -> Array[Vector2i]:
+	var targets: Array[Vector2i] = []
+	for pos in _get_adjacent_positions(player.position):
+		var cell = get_cell(pos)
+		if cell == null or cell.hidden or cell.is_center:
+			continue
+		if cell.dazed_until_turn > run.turn_index:
+			continue
+		targets.append(pos)
+	return targets
+
+
 func _make_board_charges() -> Dictionary:
 	return {
 		"peek": 1 if player.unlocked_upgrades.get("peek", false) else 0,
@@ -837,7 +874,7 @@ func _make_board_charges() -> Dictionary:
 		"anchor_ready": false,
 		"step": 1 if player.unlocked_upgrades.get("step", false) else 0,
 		"remote_flip": 1 if player.unlocked_upgrades.get("remote_flip", false) else 0,
-		"flip_again": 1 if player.unlocked_upgrades.get("flip_again", false) else 0,
+		"daze": 1 if player.unlocked_upgrades.get("daze", false) else 0,
 		"bypass": 0,
 	}
 
@@ -1088,7 +1125,7 @@ func get_upgrade_name(upgrade_id: String) -> String:
 
 
 func _format_charge_label(upgrade_id: String) -> String:
-	if upgrade_id == "flip_again":
+	if upgrade_id == "daze":
 		return "%d left" % int(player.board_charges.get(upgrade_id, 0))
 	if upgrade_id == "anchor":
 		return "ready" if int(player.board_charges.get(upgrade_id, 0)) > 0 or bool(player.board_charges.get("anchor_ready", false)) else "spent"

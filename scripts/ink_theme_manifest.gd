@@ -28,7 +28,7 @@ extends Resource
 	"remote_flip": Color8(224, 134, 78),
 	"anchor": Color8(227, 189, 120),
 	"flip": Color8(227, 189, 120),
-	"flip_again": Color8(238, 186, 92),
+	"daze": Color8(238, 186, 92),
 	"reset": Color8(230, 80, 68),
 	"status": Color8(239, 227, 196),
 	"muted": Color8(171, 152, 130),
@@ -74,7 +74,7 @@ extends Resource
 	"step": "STEP",
 	"anchor": "ANCHOR",
 	"remote_flip": "REMOTE FLIP",
-	"flip_again": "FLIP AGAIN",
+	"daze": "DAZE",
 	"reset": "RESET RUN",
 }
 @export var structure_labels: Dictionary = {

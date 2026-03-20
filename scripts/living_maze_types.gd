@@ -12,6 +12,7 @@ class CellState:
 	var previewed: bool = false
 	var revealed_on_turn: int = -1
 	var activates_on_turn: int = 1
+	var dazed_until_turn: int = -1
 
 	func duplicate_state() -> CellState:
 		var copy := CellState.new()
@@ -22,6 +23,7 @@ class CellState:
 		copy.previewed = previewed
 		copy.revealed_on_turn = revealed_on_turn
 		copy.activates_on_turn = activates_on_turn
+		copy.dazed_until_turn = dazed_until_turn
 		return copy
 
 
