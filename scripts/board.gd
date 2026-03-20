@@ -111,9 +111,6 @@ func click_tile(screen_pos: Vector2) -> void:
 func _handle_grid_click(grid_pos: Vector2i) -> void:
 	var clicked_tile = _tiles_by_pos.get(grid_pos)
 	var report: Dictionary = _game.try_flip_cell(grid_pos)
-	if not bool(report.get("ok", false)) and _game.selected_action_id != "flip":
-		_game.set_selected_action("flip")
-		report = _game.try_flip_cell(grid_pos)
 	if not bool(report.get("ok", false)):
 		if clicked_tile != null:
 			clicked_tile.play_click_feedback(false)
