@@ -360,12 +360,12 @@ func _build_role_definitions() -> void:
 	role_definitions.clear()
 	_add_role("pusher", "Pusher", "pusher", "Pushes you 1 tile away when active beside you.", "active", 14, 1, 0)
 	_add_role("puller", "Puller", "puller", "Pulls you 1 tile toward itself when active beside you.", "active", 14, 1, 0)
-	_add_role("blocker", "Blocker", "blocker", "Stops movement into its tile unless you have bypass.", "reactive", 10, 1, 0)
-	_add_role("redirector", "Redirector", "redirector", "Redirects incoming movement clockwise.", "reactive", 8, 2, 0)
-	_add_role("grabber", "Grabber", "grabber", "Holds you in place once you end beside it.", "reactive", 7, 2, 0)
-	_add_role("guide", "Guide", "guide", "Reveals up to 2 nearby hidden people.", "on_reveal", 9, 1, 0)
-	_add_role("smuggler", "Smuggler", "smuggler", "Grants a one-time blocker bypass.", "on_reveal", 8, 1, 0)
-	_add_role("killer", "Killer", "killer", "Kills you if you enter its tile.", "reactive", 5, 1, 0)
+	_add_role("blocker", "Blocker", "blocker", "Stops movement into its tile unless you have bypass.", "reactive", 3, 1, 0)
+	_add_role("redirector", "Redirector", "redirector", "Redirects incoming movement clockwise.", "reactive", 2, 2, 0)
+	_add_role("grabber", "Grabber", "grabber", "Holds you in place once you end beside it.", "reactive", 2, 2, 0)
+	_add_role("guide", "Guide", "guide", "Reveals up to 2 nearby hidden people.", "on_reveal", 2, 1, 0)
+	_add_role("smuggler", "Smuggler", "smuggler", "Grants a one-time blocker bypass.", "on_reveal", 2, 1, 0)
+	_add_role("killer", "Killer", "killer", "Kills you if you enter its tile.", "reactive", 1, 1, 0)
 
 
 func _build_upgrade_definitions() -> void:
