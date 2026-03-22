@@ -67,12 +67,12 @@ func start_next_board(increment_depth: bool = true) -> void:
 	board_cleared = false
 	failure_reason = ""
 	last_role_id = ""
-	status_text = "Flip someone nearby and let the crowd move you."
+	status_text = _get_board_intro_message()
 	phase = "flip"
 	event_log.clear()
 	history_snapshots.clear()
 	_generate_board()
-	_push_event("Board %d begins. Reach any edge to escape." % run.board_depth)
+	_push_event(_get_board_intro_message())
 	_refresh_status_text()
 	_refresh_turn_report([], [], false)
 
@@ -83,7 +83,7 @@ func choose_upgrade(upgrade_id: String) -> bool:
 	if not run.offered_upgrade_ids.has(upgrade_id):
 		return false
 	player.unlocked_upgrades[upgrade_id] = true
-	_push_event("Upgrade gained: %s." % get_upgrade_name(upgrade_id))
+	_push_event("Upgrade gained: %s. Next board starts with a new route." % get_upgrade_name(upgrade_id))
 	start_next_board(true)
 	return true
 
@@ -201,9 +201,13 @@ func get_upgrade_offer_data() -> Array[Dictionary]:
 func set_selected_action(action_id: String) -> bool:
 	if action_id == "flip":
 		selected_action_id = "flip"
+		_refresh_status_text()
+		_refresh_turn_report([], [], false)
 		return true
 	if action_id == "stay":
 		selected_action_id = "stay"
+		_refresh_status_text()
+		_refresh_turn_report([], [], false)
 		return true
 	if not player.unlocked_upgrades.get(action_id, false):
 		return false
@@ -213,6 +217,8 @@ func set_selected_action(action_id: String) -> bool:
 			if charge_value <= 0:
 				return false
 			selected_action_id = action_id
+			_refresh_status_text()
+			_refresh_turn_report([], [], false)
 			return true
 		"anchor":
 			if charge_value <= 0:
@@ -281,15 +287,17 @@ func note_invalid_click() -> void:
 		return
 	match selected_action_id:
 		"flip":
-			status_text = "Click a hidden tile next to the player."
+			status_text = "Reveal: click a hidden adjacent tile. %d legal flips remain." % get_legal_flip_positions().size()
 		"stay":
-			status_text = "Press Stay to end the turn without revealing."
+			status_text = "Stay ends the turn without revealing. Use it when the position is already safe."
 		"peek":
-			status_text = "Peek only works on highlighted adjacent hidden tiles."
+			status_text = "Observe only works on highlighted adjacent hidden tiles."
 		"remote_flip":
-			status_text = "Remote Flip only works on highlighted tiles exactly 2 spaces away."
+			status_text = "Remote Flip only works on highlighted hidden tiles exactly 2 spaces away."
 		"step":
 			status_text = "Step only works on highlighted revealed tiles."
+		"daze":
+			status_text = "Daze only works on highlighted adjacent revealed tiles."
 		_:
 			status_text = "That tile is not a valid target right now."
 
@@ -338,9 +346,10 @@ func get_hud_state() -> Dictionary:
 		"score": run.score,
 		"phase": phase_label,
 		"status": status_text,
+		"status_detail": _get_risk_summary(),
 		"title_text": _theme_manifest.title_text,
 		"subtitle_text": _theme_manifest.subtitle_text,
-		"objective_text": "Reach any edge to escape.",
+		"objective_text": _get_objective_text(),
 		"pressure_current": pressure_value,
 		"pressure_max": _get_pressure_max(),
 		"pressure_warning": pressure_value >= _get_pressure_warning_threshold(),
@@ -352,7 +361,12 @@ func get_hud_state() -> Dictionary:
 		"end_state": _get_end_state_payload(),
 		"log_lines": lines,
 		"selected_action": selected_action_id,
+		"selected_action_label": _get_action_label(selected_action_id),
+		"action_instruction": _get_action_instruction(selected_action_id),
+		"awaiting_upgrade_choice": run.awaiting_upgrade_choice,
 		"anchor_ready": bool(player.board_charges.get("anchor_ready", false)),
+		"risk_summary": _get_risk_summary(),
+		"board_tip": _get_board_tip(),
 		"legend_items": get_role_legend_data(),
 		"log_items": get_log_entries(lines),
 		"structure_items": get_structure_data(),
@@ -859,17 +873,33 @@ func _prepare_upgrade_choices_if_needed() -> void:
 	run.awaiting_upgrade_choice = true
 	run.offered_upgrade_ids = _draw_upgrade_choices()
 	phase = "reward"
-	status_text = "Choose an upgrade for the next board."
+	status_text = "Choose an upgrade before the next board starts."
 
 
 func _draw_upgrade_choices() -> Array[String]:
+	var priority := _get_early_upgrade_priority()
+	var picked: Array[String] = []
+	for upgrade_id in priority:
+		if player.unlocked_upgrades.get(upgrade_id, false):
+			continue
+		if not upgrade_definitions.has(upgrade_id):
+			continue
+		picked.append(upgrade_id)
+		if picked.size() >= 3:
+			return picked
 	var pool: Array[String] = []
 	for upgrade_id in upgrade_definitions.keys():
 		if player.unlocked_upgrades.get(upgrade_id, false):
 			continue
+		if picked.has(upgrade_id):
+			continue
 		pool.append(upgrade_id)
 	_shuffle(pool)
-	return pool.slice(0, mini(3, pool.size()))
+	for upgrade_id in pool:
+		picked.append(upgrade_id)
+		if picked.size() >= 3:
+			break
+	return picked
 
 
 func _is_trapped() -> bool:
@@ -978,24 +1008,32 @@ func _refresh_turn_report(revealed_positions: Array, movement_steps: Array, bonu
 
 func _refresh_status_text() -> void:
 	if run.awaiting_upgrade_choice:
-		status_text = "Choose an upgrade for the next board."
+		status_text = "Choose an upgrade before the next board starts."
 		return
 	if not player.alive:
 		status_text = failure_reason
 		return
+	var parts: Array[String] = []
+	parts.append(_get_action_instruction(selected_action_id))
 	var legal_flips := get_legal_flip_positions().size()
+	if selected_action_id == "flip":
+		parts.append("%d legal flips." % legal_flips)
+	elif selected_action_id in ["peek", "remote_flip", "step", "daze"]:
+		var target_count := get_valid_targets_for_action(selected_action_id).size()
+		parts.append("%d valid target%s." % [target_count, "" if target_count == 1 else "s"])
 	var bypass := int(player.board_charges.get("bypass", 0))
-	var grab_text := " Grabbed." if player.is_grabbed() else ""
-	var anchor_text := " Anchor ready." if bool(player.board_charges.get("anchor_ready", false)) else ""
-	status_text = "%d legal flips.%s%s" % [legal_flips, grab_text, anchor_text]
+	if selected_action_id != "flip" and selected_action_id != "stay":
+		parts.append("%d legal flips." % legal_flips)
 	if bypass > 0:
-		status_text += " Bypass ready."
+		parts.append("Bypass ready.")
 	var undo_charges := int(player.board_charges.get("undo", 0))
 	if undo_charges > 0:
-		status_text += " Undo %d." % undo_charges
-	var pressure := _get_pressure_value()
-	if pressure >= _get_pressure_warning_threshold():
-		status_text += " Pressure %d/%d." % [pressure, _get_pressure_max()]
+		parts.append("Undo %d." % undo_charges)
+	parts.append(_get_risk_summary())
+	var board_tip := _get_board_tip()
+	if not board_tip.is_empty():
+		parts.append(board_tip)
+	status_text = _join_text(parts)
 
 
 func _get_pressure_max() -> int:
@@ -1037,8 +1075,8 @@ func _trigger_pressure_loss_if_needed() -> bool:
 	if _get_pressure_value() < _get_pressure_max():
 		return false
 	player.alive = false
-	failure_reason = "Pressure maxed out. The maze closed in."
-	_push_event("Pressure hits %d. The maze closes in." % _get_pressure_max())
+	failure_reason = "Pressure maxed out after %d turns. The maze closed in." % run.turn_index
+	_push_event("Pressure hits %d on turn %d. The maze closes in." % [_get_pressure_max(), run.turn_index])
 	return true
 
 
@@ -1048,7 +1086,7 @@ func _get_end_state_payload() -> Dictionary:
 			"kind": "victory",
 			"title": "Escape Reached",
 			"summary": "You broke through the outer ring.",
-			"detail": "Score %d. Choose a route for the next board." % run.score if run.awaiting_upgrade_choice else "Score %d. Press on to the next board." % run.score,
+			"detail": "Board %d cleared. Choose an upgrade to define the next route." % run.board_depth if run.awaiting_upgrade_choice else "Board %d cleared. The next board starts immediately after your reward." % run.board_depth,
 		}
 	if player.alive:
 		return {}
@@ -1056,7 +1094,7 @@ func _get_end_state_payload() -> Dictionary:
 		"kind": "defeat",
 		"title": "Run Ended",
 		"summary": failure_reason if not failure_reason.is_empty() else "The maze claimed this run.",
-		"detail": "Board %d. Score %d." % [run.board_depth, run.score],
+		"detail": "Board %d. Score %d. Turn %d." % [run.board_depth, run.score, run.turn_index],
 	}
 
 
@@ -1267,6 +1305,105 @@ func _format_charge_label(upgrade_id: String) -> String:
 	if upgrade_id == "anchor":
 		return "ready" if int(player.board_charges.get(upgrade_id, 0)) > 0 or bool(player.board_charges.get("anchor_ready", false)) else "spent"
 	return "%d left" % int(player.board_charges.get(upgrade_id, 0))
+
+
+func _get_board_intro_message() -> String:
+	if run.board_depth == 1:
+		return "Board 1 begins. Reveal adjacent hidden tiles, then reach any edge."
+	if run.board_depth == 2:
+		return "Board 2 begins. Your first upgrade should start a build, not just add a button."
+	return "Board %d begins. Reach any edge to escape." % run.board_depth
+
+
+func _get_objective_text() -> String:
+	if run.awaiting_upgrade_choice:
+		return "Choose an upgrade before the next board starts."
+	if not player.alive:
+		return failure_reason if not failure_reason.is_empty() else "Run ended."
+	if board_cleared:
+		return "Choose an upgrade before the next board starts."
+	if run.board_depth == 1 and run.turn_index == 0:
+		return "Learn the opening ring, then escape through any edge."
+	return "Reach any edge to escape."
+
+
+func _get_action_label(action_id: String) -> String:
+	match action_id:
+		"flip":
+			return "Reveal"
+		"stay":
+			return "Stay"
+		"peek":
+			return "Observe"
+		"remote_flip":
+			return "Remote Flip"
+		"step":
+			return "Step"
+		"daze":
+			return "Daze"
+		"anchor":
+			return "Anchor"
+		_:
+			return action_id.capitalize()
+
+
+func _get_action_instruction(action_id: String) -> String:
+	match action_id:
+		"flip":
+			return "Reveal: click a hidden adjacent tile."
+		"stay":
+			return "Stay: end the turn and let the board resolve."
+		"peek":
+			return "Observe: click a hidden adjacent tile to preview it."
+		"remote_flip":
+			return "Remote Flip: click a hidden tile exactly 2 spaces away."
+		"step":
+			return "Step: click a safe revealed adjacent tile."
+		"daze":
+			return "Daze: click an adjacent revealed tile to delay its next turn."
+		"anchor":
+			return "Anchor: arm the next forced move cancel."
+		_:
+			return "Choose a valid action."
+
+
+func _get_risk_summary() -> String:
+	var parts: Array[String] = []
+	var pressure := _get_pressure_value()
+	parts.append("Pressure %d/%d." % [pressure, _get_pressure_max()])
+	if player.is_grabbed():
+		parts.append("Grabbed.")
+	if bool(player.board_charges.get("anchor_ready", false)):
+		parts.append("Anchor ready.")
+	return _join_text(parts)
+
+
+func _get_board_tip() -> String:
+	if not player.alive or run.awaiting_upgrade_choice:
+		return ""
+	if run.board_depth == 1 and run.turn_index == 0:
+		return "Board 1 tip: reveal first, then steer for an edge."
+	if run.board_depth == 2 and run.turn_index == 0:
+		return "Board 2 tip: use your first upgrade to create a safer route."
+	return ""
+
+
+func _get_early_upgrade_priority() -> Array[String]:
+	if run.board_depth == 1:
+		return ["peek", "anchor", "step", "remote_flip", "daze"]
+	if run.board_depth == 2:
+		return ["step", "remote_flip", "anchor", "daze", "peek"]
+	return []
+
+
+func _join_text(parts: Array[String]) -> String:
+	var text := ""
+	for part in parts:
+		if text.is_empty():
+			text = part
+		else:
+			text += " %s" % part
+	return text
 
 
 func _push_snapshot() -> void:

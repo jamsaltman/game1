@@ -195,11 +195,14 @@ func get_hovered_tile_details() -> Dictionary:
 		state_label = "Peeked"
 	elif not cell.hidden:
 		state_label = "Revealed"
+	var timing_text := _get_hover_timing_text(cell)
+	var summary := _build_hover_summary(cell, title, description, is_known)
 
 	return {
 		"grid_position": cell.grid_position,
 		"title": title,
 		"description": description,
+		"summary": summary,
 		"state_label": state_label,
 		"icon_id": icon_id,
 		"accent_color": accent_color,
@@ -208,8 +211,65 @@ func get_hovered_tile_details() -> Dictionary:
 		"is_previewed": cell.previewed,
 		"is_target": _selected_targets.has(cell.grid_position),
 		"is_selected_target": _game.selected_action_id != "flip" and _selected_targets.has(cell.grid_position),
-		"detail_line": "TRACE %s" % [cell.grid_position],
+		"detail_line": "%s  TRACE %s" % [timing_text, cell.grid_position],
 	}
+
+
+func _build_hover_summary(cell, title: String, description: String, is_known: bool) -> String:
+	var selected_action: String = _game.selected_action_id if _game != null else "flip"
+	var is_target := _selected_targets.has(cell.grid_position)
+	if cell.hidden and not cell.previewed:
+		var hidden_summary := "Hidden tile. Reveal it to learn who is here."
+		if is_target:
+			hidden_summary += " It is a legal target for %s." % _get_action_label(selected_action)
+		return hidden_summary
+	if cell.previewed and cell.hidden:
+		var preview_summary := "%s is previewed but still hidden." % title
+		preview_summary += " It will not affect movement until you reveal it."
+		if is_target:
+			preview_summary += " You can reveal it now."
+		return preview_summary
+	if not is_known:
+		return description
+	var summary := description
+	var timing_text := _get_hover_timing_text(cell)
+	if not timing_text.is_empty():
+		summary += " %s." % timing_text.capitalize()
+	if is_target:
+		summary += " Legal target for %s." % _get_action_label(selected_action)
+	return summary
+
+
+func _get_hover_timing_text(cell) -> String:
+	if _game == null:
+		return ""
+	if cell.hidden:
+		return "HIDDEN"
+	if cell.dazed_until_turn > _game.run.turn_index:
+		return "DAZED THIS TURN"
+	if cell.activates_on_turn > _game.run.turn_index:
+		return "ACTS NEXT TURN"
+	return "ACTIVE NOW"
+
+
+func _get_action_label(action_id: String) -> String:
+	match action_id:
+		"flip":
+			return "Reveal"
+		"stay":
+			return "Stay"
+		"peek":
+			return "Observe"
+		"remote_flip":
+			return "Remote Flip"
+		"step":
+			return "Step"
+		"daze":
+			return "Daze"
+		"anchor":
+			return "Anchor"
+		_:
+			return action_id.capitalize()
 
 
 func get_action_buttons() -> Array:

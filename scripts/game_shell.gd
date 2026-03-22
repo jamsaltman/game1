@@ -26,6 +26,8 @@ var _section_cache: Dictionary = {}
 @onready var _log_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/LogPanel
 @onready var _structure_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/StructuresPanel
 @onready var _minimap_panel: PanelContainer = $Margin/Root/Top/RightRailScroll/RightRail/MinimapPanel
+@onready var _left_rail_scroll: ScrollContainer = $Margin/Root/Top/LeftRailScroll
+@onready var _right_rail_scroll: ScrollContainer = $Margin/Root/Top/RightRailScroll
 @onready var _title_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox/Title
 @onready var _subtitle_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TitlePanel/MarginBox/TitleBox/Subtitle
 @onready var _round_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Round
@@ -34,11 +36,22 @@ var _section_cache: Dictionary = {}
 @onready var _status_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/Status
 @onready var _pixel_toggle: CheckButton = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PixelToggle
 @onready var _pressure_bar: HBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/PressureBar
+@onready var _turn_panel: PanelContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel
+@onready var _turn_title_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox/TurnTitle
+@onready var _turn_body_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox/TurnBody
+@onready var _turn_footer_label: Label = $Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox/TurnFooter
 @onready var _legend_list: VBoxContainer = $Margin/Root/Top/LeftRailScroll/LeftRail/LegendPanel/MarginBox/LegendBox/LegendScroll/LegendList
 @onready var _board_host: Control = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost
 @onready var _pixel_display: TextureRect = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/PixelDisplay
+@onready var _transition_panel: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel
+@onready var _transition_eyebrow_label: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox/TransitionEyebrow
+@onready var _transition_title_label: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox/TransitionTitle
+@onready var _transition_body_label: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox/TransitionBody
+@onready var _transition_meta_label: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox/TransitionMeta
 @onready var _upgrade_overlay: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay
 @onready var _upgrade_title: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeTitle
+@onready var _upgrade_subtitle: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeSubtitle
+@onready var _upgrade_context: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeContext
 @onready var _upgrade_buttons_box: VBoxContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeButtons
 @onready var _game_over_overlay: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay
 @onready var _game_over_eyebrow: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox/GameOverEyebrow
@@ -60,12 +73,14 @@ func _ready() -> void:
 	# Side rails are intentionally scroll-wrapped so adding or resizing a panel
 	# cannot silently increase the shell height and push the board off-screen.
 	_apply_static_theme()
+	_apply_layout_constraints()
 	_build_pressure_bar()
 	_build_structure_cards()
 	_build_upgrade_buttons()
 	_game_over_restart_button.pressed.connect(_on_game_over_restart_pressed)
 	_pixel_toggle.toggled.connect(_on_pixel_toggle_toggled)
 	resized.connect(_refresh_backdrop_textures)
+	resized.connect(_apply_layout_constraints)
 	call_deferred("_refresh_backdrop_textures")
 
 
@@ -80,21 +95,32 @@ func get_pixel_display() -> TextureRect:
 func update_state(state: Dictionary) -> void:
 	_title_label.text = String(state.get("title_text", _theme_manifest.title_text))
 	_subtitle_label.text = String(state.get("subtitle_text", _theme_manifest.subtitle_text))
-	_round_label.text = "ROUND %02d" % int(state.get("depth", 1))
+	var phase_label := _get_optional_state_string(state, ["phase_label"], String(state.get("phase", "FLIP")).to_upper())
+	_round_label.text = "ROUND %02d  %s" % [int(state.get("depth", 1)), phase_label]
 	_pressure_value_label.text = "%d / %d" % [int(state.get("pressure_current", 0)), int(state.get("pressure_max", 10))]
-	_objective_label.text = String(state.get("objective_text", "Reach any edge to escape."))
-	_status_label.text = String(state.get("status", ""))
+	var objective_text := String(state.get("objective_text", "Reach any edge to escape."))
+	var objective_detail := _get_optional_state_string(state, ["objective_detail", "goal_detail"], "")
+	if not objective_detail.is_empty():
+		objective_text += "\n%s" % objective_detail
+	_objective_label.text = objective_text
+	var status_text := String(state.get("status", ""))
+	var status_detail := _get_optional_state_string(state, ["status_detail", "turn_status"], "")
+	if not status_detail.is_empty() and status_detail != status_text:
+		status_text = "%s\n%s" % [status_text, status_detail] if not status_text.is_empty() else status_detail
+	_status_label.text = status_text
+	_refresh_section_if_changed("turn", _get_turn_payload(state), _refresh_turn_surface)
+	_refresh_section_if_changed("transition", _get_transition_payload(state), _refresh_transition_banner)
 	_refresh_pressure_bar(int(state.get("pressure_current", 0)), int(state.get("pressure_max", 10)))
 	_refresh_section_if_changed("legend", state.get("legend_items", []), _refresh_legend)
 	_refresh_section_if_changed("actions", state.get("action_items", []), _refresh_actions)
 	_refresh_section_if_changed("log", {
 		"items": state.get("log_items", []),
-		"status": String(state.get("status", "")),
+		"status": status_text,
 	}, _refresh_log_bundle)
 	_refresh_section_if_changed("hover", state.get("hover_card", {}), _refresh_hover)
 	_refresh_section_if_changed("structures", state.get("structure_items", []), _refresh_structures)
 	_refresh_section_if_changed("minimap", state.get("minimap", {}), _refresh_minimap)
-	_refresh_section_if_changed("upgrades", state.get("upgrade_items", []), _refresh_upgrade_overlay)
+	_refresh_section_if_changed("upgrades", _get_upgrade_payload(state), _refresh_upgrade_overlay)
 	_refresh_section_if_changed("game_over", _get_game_over_payload(state), _refresh_game_over_overlay)
 
 
@@ -123,14 +149,187 @@ func _refresh_log_bundle(bundle: Dictionary) -> void:
 	_refresh_log(bundle.get("items", []), String(bundle.get("status", "")))
 
 
+func _get_turn_payload(state: Dictionary) -> Dictionary:
+	var selected_action_id := String(state.get("selected_action", "flip"))
+	var action_items: Array = state.get("action_items", [])
+	var action_item := _find_action_item(action_items, selected_action_id)
+	var action_label := String(action_item.get("label", _get_action_display_name(selected_action_id)))
+	var title := _get_optional_state_string(state, ["turn_title", "action_title"], "")
+	if title.is_empty():
+		var end_state: Dictionary = state.get("end_state", {})
+		if String(end_state.get("kind", "")) == "victory":
+			title = "Board cleared"
+		elif bool(state.get("run_over", false)):
+			title = "Run ended"
+		elif bool(state.get("awaiting_upgrade_choice", false)):
+			title = "Choose an upgrade"
+		else:
+			title = action_label
+	var body := _get_optional_state_string(state, ["turn_hint", "action_hint", "status_detail"], "")
+	if body.is_empty():
+		body = _get_action_instruction(selected_action_id)
+	var footer := _get_optional_state_string(state, ["turn_footer", "context_line"], String(state.get("status", "")))
+	if footer.is_empty():
+		footer = _build_turn_footer(state, action_label)
+	var accent := Color(action_item.get("accent_color", _theme_manifest.get_color("highlight")))
+	return {
+		"visible": true,
+		"title": title,
+		"body": body,
+		"footer": footer,
+		"accent_color": accent,
+	}
+
+
+func _refresh_turn_surface(payload: Dictionary) -> void:
+	_turn_panel.visible = bool(payload.get("visible", true))
+	_turn_title_label.text = String(payload.get("title", "Turn"))
+	_turn_body_label.text = String(payload.get("body", ""))
+	_turn_footer_label.text = String(payload.get("footer", ""))
+	var accent := Color(payload.get("accent_color", _theme_manifest.get_color("highlight")))
+	_turn_title_label.add_theme_color_override("font_color", accent)
+	_turn_footer_label.add_theme_color_override("font_color", _theme_manifest.get_color("muted"))
+
+
+func _get_transition_payload(state: Dictionary) -> Dictionary:
+	var end_state: Dictionary = state.get("end_state", {})
+	if String(end_state.get("kind", "")) != "victory":
+		return {"visible": false}
+	var title := _get_optional_state_string(state, ["transition_title"], String(end_state.get("title", "Board cleared")))
+	var body := _get_optional_state_string(state, ["transition_body"], String(end_state.get("summary", "Route opened.")))
+	var detail := _get_optional_state_string(state, ["transition_detail"], String(end_state.get("detail", "Choose an upgrade to continue.")))
+	var meta := _get_optional_state_string(state, ["transition_meta"], "")
+	if meta.is_empty():
+		meta = detail
+	if meta.is_empty():
+		meta = "Depth %02d  Score %d" % [int(state.get("depth", 1)), int(state.get("score", 0))]
+	if bool(state.get("awaiting_upgrade_choice", false)):
+		meta += "  Pick one route to continue."
+	return {
+		"visible": true,
+		"eyebrow": _get_optional_state_string(state, ["transition_eyebrow"], "BOARD CLEARED"),
+		"title": title,
+		"body": body,
+		"meta": meta,
+		"accent_color": _theme_manifest.get_color("highlight"),
+	}
+
+
+func _refresh_transition_banner(payload: Dictionary) -> void:
+	var visible := bool(payload.get("visible", false))
+	_transition_panel.visible = visible
+	if not visible:
+		return
+	_transition_eyebrow_label.text = String(payload.get("eyebrow", "BOARD CLEARED"))
+	_transition_title_label.text = String(payload.get("title", "Route opened"))
+	_transition_body_label.text = String(payload.get("body", "Choose an upgrade to continue."))
+	_transition_meta_label.text = String(payload.get("meta", ""))
+	var accent := Color(payload.get("accent_color", _theme_manifest.get_color("highlight")))
+	_transition_eyebrow_label.add_theme_color_override("font_color", accent)
+	_transition_title_label.add_theme_color_override("font_color", _theme_manifest.get_color("ink"))
+	_transition_panel.add_theme_stylebox_override("panel", _painter.make_panel_style("paper", accent))
+
+
+func _get_upgrade_payload(state: Dictionary) -> Dictionary:
+	var items: Array = state.get("upgrade_items", [])
+	var title := _get_optional_state_string(state, ["upgrade_title"], "Choose a route")
+	var subtitle := _get_optional_state_string(state, ["upgrade_subtitle", "reward_title"], "Pick one upgrade to shape the next board.")
+	var context := _get_optional_state_string(state, ["upgrade_context", "reward_context"], "")
+	if context.is_empty():
+		context = "Depth %02d  Score %d" % [int(state.get("depth", 1)), int(state.get("score", 0))]
+		var end_state: Dictionary = state.get("end_state", {})
+		var detail := String(end_state.get("detail", ""))
+		if not detail.is_empty():
+			context += "\n%s" % detail
+	return {
+		"items": items,
+		"title": title,
+		"subtitle": subtitle,
+		"context": context,
+	}
+
+
+func _find_action_item(items: Array, action_id: String) -> Dictionary:
+	for item in items:
+		if String(item.get("id", "")) == action_id:
+			return item
+	return {}
+
+
+func _get_optional_state_string(state: Dictionary, keys: Array[String], fallback: String) -> String:
+	for key in keys:
+		var value := String(state.get(key, ""))
+		if not value.is_empty():
+			return value
+	return fallback
+
+
+func _get_action_display_name(action_id: String) -> String:
+	match action_id:
+		"flip":
+			return "Reveal"
+		"stay":
+			return "Stay"
+		"peek":
+			return "Observe"
+		"remote_flip":
+			return "Remote Flip"
+		"step":
+			return "Step"
+		"daze":
+			return "Daze"
+		"anchor":
+			return "Anchor"
+		_:
+			return action_id.capitalize()
+
+
+func _get_action_instruction(action_id: String) -> String:
+	match action_id:
+		"flip":
+			return "Click a hidden adjacent tile to reveal it and let the board resolve."
+		"stay":
+			return "End the turn without revealing. Pressure still advances."
+		"peek":
+			return "Click a highlighted adjacent hidden tile to preview it without spending the reveal."
+		"remote_flip":
+			return "Click a hidden tile exactly two spaces away on a straight line."
+		"step":
+			return "Click a safe revealed adjacent tile to move before the board reacts."
+		"daze":
+			return "Click a revealed adjacent tile to delay its next activation."
+		"anchor":
+			return "Arm the anchor so the next forced move is canceled."
+		_:
+			return "Choose a legal target or switch actions from the dock."
+
+
+func _build_turn_footer(state: Dictionary, action_label: String) -> String:
+	var segments: Array[String] = []
+	var pressure_current := int(state.get("pressure_current", 0))
+	var pressure_max := int(state.get("pressure_max", 0))
+	if pressure_max > 0:
+		segments.append("Pressure %d/%d" % [pressure_current, pressure_max])
+	var pressure_warning := bool(state.get("pressure_warning", false))
+	if pressure_warning:
+		segments.append("Warning threshold reached")
+	if bool(state.get("anchor_ready", false)):
+		segments.append("Anchor armed")
+	if bool(state.get("player_alive", true)) and not bool(state.get("run_over", false)):
+		segments.append("Selected: %s" % action_label)
+	if segments.is_empty():
+		return "Selected: %s" % action_label
+	return "  ".join(segments)
+
+
 func _apply_static_theme() -> void:
 	var dark_panel: StyleBoxTexture = _painter.make_panel_style("dark")
 	var paper_panel: StyleBoxTexture = _painter.make_panel_style("paper")
-	var paper_soft_panel: StyleBoxTexture = _painter.make_panel_style("paper_soft")
-	for panel in [_left_title_panel, _status_panel, _legend_panel, _board_panel, _action_panel, _log_panel, _structure_panel, _minimap_panel]:
+	for panel in [_left_title_panel, _status_panel, _turn_panel, _legend_panel, _board_panel, _action_panel, _log_panel, _structure_panel, _minimap_panel]:
 		panel.add_theme_stylebox_override("panel", dark_panel)
 	_hover_panel.add_theme_stylebox_override("panel", paper_panel)
-	_upgrade_overlay.add_theme_stylebox_override("panel", paper_soft_panel)
+	_transition_panel.add_theme_stylebox_override("panel", _painter.make_panel_style("paper", _theme_manifest.get_color("highlight")))
+	_upgrade_overlay.add_theme_stylebox_override("panel", _painter.make_panel_style("paper_soft", _theme_manifest.get_color("highlight")))
 	_apply_label_theme(_title_label, 34, _theme_manifest.get_color("paper"), true)
 	_apply_label_theme(_subtitle_label, 14, _theme_manifest.get_color("muted"), false)
 	_apply_label_theme(_round_label, 20, _theme_manifest.get_color("paper"), true)
@@ -138,10 +337,16 @@ func _apply_static_theme() -> void:
 	_apply_label_theme(_pressure_value_label, 16, _theme_manifest.get_color("paper"), false)
 	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/ObjectiveHeading, 13, _theme_manifest.get_color("muted"), true)
 	_apply_label_theme(_objective_label, 18, _theme_manifest.get_color("paper"), false)
-	_objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_theme($Margin/Root/Top/LeftRailScroll/LeftRail/StatusPanel/MarginBox/StatusBox/StatusHeading, 13, _theme_manifest.get_color("muted"), true)
 	_apply_label_theme(_status_label, 15, _theme_manifest.get_color("muted"), false)
-	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_theme(_turn_title_label, 19, _theme_manifest.get_color("paper"), true)
+	_apply_label_theme(_turn_body_label, 15, _theme_manifest.get_color("ink_soft"), false)
+	_apply_label_theme(_turn_footer_label, 13, _theme_manifest.get_color("muted"), false)
+	_configure_wrapping_label(_objective_label)
+	_configure_wrapping_label(_status_label)
+	_configure_wrapping_label(_turn_title_label)
+	_configure_wrapping_label(_turn_body_label)
+	_configure_wrapping_label(_turn_footer_label)
 	_pixel_toggle.text = "PIXELATION"
 	_pixel_toggle.toggle_mode = true
 	_pixel_toggle.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -152,16 +357,29 @@ func _apply_static_theme() -> void:
 	_apply_label_theme(_hover_state_label, 13, _theme_manifest.get_color("muted"), false)
 	_apply_label_theme(_hover_title_label, 24, _theme_manifest.get_color("ink"), true)
 	_apply_label_theme(_hover_body_label, 16, _theme_manifest.get_color("ink_soft"), false)
-	_hover_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_theme(_next_reveal_label, 14, _theme_manifest.get_color("danger"), false)
 	_apply_label_theme(_upgrade_title, 24, _theme_manifest.get_color("ink"), true)
+	_apply_label_theme(_upgrade_subtitle, 16, _theme_manifest.get_color("ink_soft"), false)
+	_apply_label_theme(_upgrade_context, 13, _theme_manifest.get_color("muted"), false)
+	_apply_label_theme(_transition_eyebrow_label, 13, _theme_manifest.get_color("highlight"), true)
+	_apply_label_theme(_transition_title_label, 26, _theme_manifest.get_color("ink"), true)
+	_apply_label_theme(_transition_body_label, 16, _theme_manifest.get_color("ink_soft"), false)
+	_apply_label_theme(_transition_meta_label, 13, _theme_manifest.get_color("muted"), false)
 	_game_over_overlay.add_theme_stylebox_override("panel", _painter.make_panel_style("paper", _theme_manifest.get_color("danger")))
 	_apply_label_theme(_game_over_eyebrow, 13, _theme_manifest.get_color("danger"), true)
 	_apply_label_theme(_game_over_title, 28, _theme_manifest.get_color("ink"), true)
 	_apply_label_theme(_game_over_body, 16, _theme_manifest.get_color("ink_soft"), false)
-	_game_over_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_configure_wrapping_label(_hover_title_label)
+	_configure_wrapping_label(_hover_body_label)
+	_configure_wrapping_label(_upgrade_subtitle)
+	_configure_wrapping_label(_upgrade_context)
+	_configure_wrapping_label(_transition_title_label)
+	_configure_wrapping_label(_transition_body_label)
+	_configure_wrapping_label(_transition_meta_label)
+	_configure_wrapping_label(_game_over_body)
 	_style_button(_game_over_restart_button, false, true)
 	_upgrade_overlay.visible = false
+	_transition_panel.visible = false
 	_game_over_overlay.visible = false
 	_hover_card.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hover_card.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -186,6 +404,17 @@ func _apply_label_theme(label: Label, size: int, color: Color, display_font: boo
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_font_override("font", _painter.make_display_font(size) if display_font else _painter.make_body_font(size))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _configure_wrapping_label(label: Label) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+
+func _apply_layout_constraints() -> void:
+	var viewport_width := get_viewport_rect().size.x
+	_left_rail_scroll.custom_minimum_size.x = clampf(viewport_width * 0.20, 240.0, 320.0)
+	_right_rail_scroll.custom_minimum_size.x = clampf(viewport_width * 0.24, 280.0, 360.0)
 
 
 func _build_pressure_bar() -> void:
@@ -287,7 +516,7 @@ func _refresh_hover(card_data: Dictionary) -> void:
 	if card_data.is_empty():
 		_hover_state_label.text = "INSPECT"
 		_hover_title_label.text = "Hover a tile"
-		_hover_body_label.text = "Move over a card to inspect its occupant and state."
+		_hover_body_label.text = "Move over a tile to inspect the occupant, reveal state, and current target hints."
 		_next_reveal_label.text = "NEXT REVEAL UNKNOWN"
 		_hover_card.texture = _painter.make_role_card_texture("guide", {"is_hidden": true, "is_previewed": false}, 256, 1)
 		return
@@ -295,7 +524,10 @@ func _refresh_hover(card_data: Dictionary) -> void:
 	var accent := Color(card_data.get("accent_color", _theme_manifest.get_color(icon_id)))
 	_hover_state_label.text = String(card_data.get("state_label", "TILE"))
 	_hover_title_label.text = String(card_data.get("title", "Tile"))
-	_hover_body_label.text = String(card_data.get("description", ""))
+	var body_text := String(card_data.get("summary", card_data.get("description", "")))
+	if body_text.is_empty():
+		body_text = String(card_data.get("description", ""))
+	_hover_body_label.text = body_text
 	_next_reveal_label.text = String(card_data.get("detail_line", "RECENT INTEL"))
 	_hover_card.texture = _painter.make_role_card_texture(icon_id, {
 		"is_hidden": bool(card_data.get("is_hidden", false)),
@@ -362,14 +594,18 @@ func _build_upgrade_buttons() -> void:
 	for _index in range(3):
 		var button := Button.new()
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.custom_minimum_size = Vector2(420, 62)
+		button.custom_minimum_size = Vector2(420, 76)
 		button.pressed.connect(_on_upgrade_pressed.bind(button))
 		_upgrade_buttons_box.add_child(button)
 		_upgrade_buttons.append(button)
 
 
-func _refresh_upgrade_overlay(items: Array) -> void:
+func _refresh_upgrade_overlay(payload: Dictionary) -> void:
+	var items: Array = payload.get("items", [])
 	_upgrade_overlay.visible = not items.is_empty()
+	_upgrade_title.text = String(payload.get("title", "Choose a route"))
+	_upgrade_subtitle.text = String(payload.get("subtitle", "Pick one upgrade to shape the next board."))
+	_upgrade_context.text = String(payload.get("context", ""))
 	for index in range(_upgrade_buttons.size()):
 		var button := _upgrade_buttons[index]
 		if index >= items.size():
@@ -403,6 +639,13 @@ func _get_game_over_payload(state: Dictionary) -> Dictionary:
 	var body := reason
 	if score_value > 0:
 		body += "\n\nDepth cleared: %d" % score_value
+	if reason.contains("Pressure"):
+		body += "\nTry earlier exits or a safer first reveal."
+	elif reason.contains("killer") or reason.contains("Killer"):
+		body += "\nKiller tiles end the run on entry."
+	elif reason.contains("grabber") or reason.contains("Grabber"):
+		body += "\nGrabbers make forced movement harder to escape."
+	body += "\nPress R to restart."
 	return {
 		"visible": true,
 		"eyebrow": str(state.get("game_over_eyebrow", "RUN ENDED")),
@@ -430,7 +673,8 @@ func _style_button(button: BaseButton, selected: bool, danger: bool) -> void:
 	button.add_theme_stylebox_override("pressed", hover)
 	button.add_theme_stylebox_override("disabled", disabled)
 	button.add_theme_stylebox_override("focus", hover)
-	button.add_theme_font_override("font", _painter.make_display_font(18))
+	if not (button is CheckButton):
+		button.add_theme_font_override("font", _painter.make_display_font(18))
 	button.add_theme_font_size_override("font_size", 18)
 	button.add_theme_color_override("font_color", _theme_manifest.get_color("paper") if not danger else _theme_manifest.get_color("danger"))
 	button.add_theme_color_override("font_disabled_color", _theme_manifest.get_color("muted"))

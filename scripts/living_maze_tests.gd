@@ -18,6 +18,7 @@ func _initialize() -> void:
 
 func _run_tests() -> void:
 	_test_generation_safety()
+	_test_hud_guidance_exposes_action_and_board_tip()
 	_test_pusher_moves_player()
 	_test_redirector_reroutes_movement()
 	_test_smuggler_bypass_consumes_charge()
@@ -25,6 +26,7 @@ func _run_tests() -> void:
 	_test_guide_reveal_delays_activation()
 	_test_rewinder_grants_undo()
 	_test_undo_rewinds_last_action()
+	_test_first_board_reward_is_curated()
 	_test_escape_offers_upgrades()
 
 
@@ -48,6 +50,18 @@ func _test_generation_safety() -> void:
 			has_help = true
 	_assert_true(has_transport, "generation guarantees at least one transport role in the first ring")
 	_assert_true(has_help, "generation guarantees at least one help role in the first ring")
+
+
+func _test_hud_guidance_exposes_action_and_board_tip() -> void:
+	var game = _make_blank_game()
+	game.player.unlocked_upgrades["peek"] = true
+	game.player.board_charges["peek"] = 1
+	game.set_selected_action("peek")
+	var hud: Dictionary = game.get_hud_state()
+	_assert_true(String(hud.get("action_instruction", "")).contains("hidden adjacent tile"), "HUD exposes the current action instruction")
+	_assert_true(String(hud.get("risk_summary", "")).contains("Pressure"), "HUD exposes the current risk summary")
+	_assert_true(String(hud.get("board_tip", "")).contains("Board 1 tip"), "HUD teaches the opening board")
+	_assert_true(game.status_text.contains("Observe"), "status text updates immediately when the action changes")
 
 
 func _test_pusher_moves_player() -> void:
@@ -118,6 +132,17 @@ func _test_undo_rewinds_last_action() -> void:
 	_assert_true(game.get_cell(Vector2i(3, 2)).hidden, "undo restores the revealed rewinder to hidden")
 	_assert_eq(int(game.player.board_charges.get("undo", -1)), 0, "undo spends the granted charge")
 	_assert_eq(game.run.turn_index, 0, "undo restores the previous turn index")
+
+
+func _test_first_board_reward_is_curated() -> void:
+	var game = _make_blank_game()
+	game.player.position = Vector2i(1, 3)
+	_set_role(game, Vector2i(2, 3), "pusher", false)
+	_set_role(game, Vector2i(1, 2), "guide", true)
+	game.try_flip_cell(Vector2i(1, 2))
+	_assert_true(game.run.awaiting_upgrade_choice, "escaping a board opens an upgrade choice")
+	_assert_eq(game.run.offered_upgrade_ids, ["peek", "anchor", "step"], "the first board offers curated starter upgrades")
+	_assert_true(String(game.get_hud_state().get("objective_text", "")).contains("upgrade"), "objective text shifts into reward mode after escape")
 
 
 func _test_escape_offers_upgrades() -> void:

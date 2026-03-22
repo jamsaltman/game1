@@ -144,6 +144,36 @@ layout_mode = 2
 button_pressed = true
 text = "PIXELATION"
 
+[node name="TurnPanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
+layout_mode = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="TurnBox" type="VBoxContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Heading" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox"]
+layout_mode = 2
+text = "TURN READ"
+
+[node name="TurnTitle" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox"]
+layout_mode = 2
+text = "Reveal a hidden tile"
+
+[node name="TurnBody" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox"]
+layout_mode = 2
+text = "Use the action dock to inspect the board and keep pressure low."
+
+[node name="TurnFooter" type="Label" parent="Margin/Root/Top/LeftRailScroll/LeftRail/TurnPanel/MarginBox/TurnBox"]
+layout_mode = 2
+text = "Click a legal target to resolve the turn."
+
 [node name="LegendPanel" type="PanelContainer" parent="Margin/Root/Top/LeftRailScroll/LeftRail"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -208,18 +238,59 @@ mouse_filter = 0
 expand_mode = 1
 stretch_mode = 6
 
+[node name="TransitionPanel" type="PanelContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost"]
+visible = false
+custom_minimum_size = Vector2(520, 112)
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = -260.0
+offset_top = -124.0
+offset_right = 260.0
+offset_bottom = -12.0
+mouse_filter = 1
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="TransitionBox" type="VBoxContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TransitionEyebrow" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox"]
+layout_mode = 2
+text = "BOARD CLEARED"
+
+[node name="TransitionTitle" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox"]
+layout_mode = 2
+text = "Route opened"
+
+[node name="TransitionBody" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox"]
+layout_mode = 2
+text = "Choose an upgrade to continue."
+
+[node name="TransitionMeta" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/TransitionPanel/MarginBox/TransitionBox"]
+layout_mode = 2
+text = "Score and depth will carry forward."
+
 [node name="UpgradeOverlay" type="PanelContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost"]
 visible = false
-custom_minimum_size = Vector2(460, 260)
+custom_minimum_size = Vector2(460, 300)
 layout_mode = 1
 anchor_left = 0.5
 anchor_right = 0.5
 anchor_top = 0.5
 anchor_bottom = 0.5
 offset_left = -230.0
-offset_top = -130.0
+offset_top = -150.0
 offset_right = 230.0
-offset_bottom = 130.0
+offset_bottom = 150.0
 
 [node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay"]
 layout_mode = 2
@@ -235,6 +306,14 @@ theme_override_constants/separation = 10
 [node name="UpgradeTitle" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
 layout_mode = 2
 text = "Choose a route"
+
+[node name="UpgradeSubtitle" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
+layout_mode = 2
+text = "Pick one upgrade to shape the next board."
+
+[node name="UpgradeContext" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
+layout_mode = 2
+text = "Rewards arrive as the run deepens."
 
 [node name="UpgradeButtons" type="VBoxContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox"]
 layout_mode = 2
