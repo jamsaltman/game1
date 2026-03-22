@@ -99,7 +99,7 @@ func try_undo() -> void:
 
 
 func update_hover(screen_pos: Vector2, active: bool) -> void:
-	if _resolving_turn:
+	if is_interaction_locked():
 		active = false
 	var next_tile = _pick_tile(screen_pos) if active else null
 	if _hovered_tile == next_tile:
@@ -113,12 +113,20 @@ func update_hover(screen_pos: Vector2, active: bool) -> void:
 
 
 func click_tile(screen_pos: Vector2) -> void:
-	if _game == null or _resolving_turn:
+	if is_interaction_locked():
 		return
 	var tile = _pick_tile(screen_pos)
 	if tile == null:
 		return
 	_handle_grid_click(tile.grid_position)
+
+
+func is_interaction_locked() -> bool:
+	if _game == null or _resolving_turn:
+		return true
+	if not _game.player.alive:
+		return true
+	return _game.run.awaiting_upgrade_choice
 
 
 func _handle_grid_click(grid_pos: Vector2i) -> void:

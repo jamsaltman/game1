@@ -5,6 +5,8 @@ const Types = preload("res://scripts/living_maze_types.gd")
 const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
 
 const INVALID_POS := Vector2i(-999, -999)
+const PRESSURE_MAX := 10
+const PRESSURE_WARNING := 8
 const DIRECTIONS := [
 	Vector2i.UP,
 	Vector2i.RIGHT,
@@ -330,6 +332,7 @@ func get_hud_state() -> Dictionary:
 		phase_label = "Loss"
 
 	var lines: Array[String] = event_log.slice(maxi(event_log.size() - 5, 0), event_log.size())
+	var pressure_value := _get_pressure_value()
 	return {
 		"depth": run.board_depth,
 		"score": run.score,
@@ -338,12 +341,15 @@ func get_hud_state() -> Dictionary:
 		"title_text": _theme_manifest.title_text,
 		"subtitle_text": _theme_manifest.subtitle_text,
 		"objective_text": "Reach any edge to escape.",
-		"pressure_current": _get_pressure_value(),
-		"pressure_max": 10,
+		"pressure_current": pressure_value,
+		"pressure_max": PRESSURE_MAX,
+		"pressure_warning": pressure_value >= PRESSURE_WARNING,
 		"last_role_name": role_name,
 		"last_role_description": role_description,
 		"failure_reason": failure_reason,
 		"player_alive": player.alive,
+		"run_over": board_cleared or not player.alive,
+		"end_state": _get_end_state_payload(),
 		"log_lines": lines,
 		"selected_action": selected_action_id,
 		"anchor_ready": bool(player.board_charges.get("anchor_ready", false)),
@@ -810,6 +816,10 @@ func _evaluate_end_state(consumed_flip: bool) -> bool:
 	if board_cleared:
 		_prepare_upgrade_choices_if_needed()
 		return false
+	if _trigger_pressure_loss_if_needed():
+		phase = "loss"
+		status_text = failure_reason
+		return false
 	if not player.alive:
 		phase = "loss"
 		status_text = failure_reason
@@ -940,6 +950,10 @@ func _refresh_turn_report(revealed_positions: Array, movement_steps: Array, bonu
 		"board_cleared": board_cleared,
 		"awaiting_upgrade_choice": run.awaiting_upgrade_choice,
 		"player_alive": player.alive,
+		"failure_reason": failure_reason,
+		"pressure_current": _get_pressure_value(),
+		"pressure_max": PRESSURE_MAX,
+		"end_state": _get_end_state_payload(),
 	}
 
 
@@ -960,6 +974,9 @@ func _refresh_status_text() -> void:
 	var undo_charges := int(player.board_charges.get("undo", 0))
 	if undo_charges > 0:
 		status_text += " Undo %d." % undo_charges
+	var pressure := _get_pressure_value()
+	if pressure >= PRESSURE_WARNING:
+		status_text += " Pressure %d/%d." % [pressure, PRESSURE_MAX]
 
 
 func _get_pressure_value() -> int:
@@ -974,7 +991,36 @@ func _get_pressure_value() -> int:
 			continue
 		if cell.role_id in ["pusher", "puller", "killer", "grabber"]:
 			pressure += 1
-	return clampi(pressure, 0, 10)
+	return clampi(pressure, 0, PRESSURE_MAX)
+
+
+func _trigger_pressure_loss_if_needed() -> bool:
+	if not player.alive or board_cleared:
+		return false
+	if _get_pressure_value() < PRESSURE_MAX:
+		return false
+	player.alive = false
+	failure_reason = "Pressure maxed out. The maze closed in."
+	_push_event("Pressure hits %d. The maze closes in." % PRESSURE_MAX)
+	return true
+
+
+func _get_end_state_payload() -> Dictionary:
+	if board_cleared:
+		return {
+			"kind": "victory",
+			"title": "Escape Reached",
+			"summary": "You broke through the outer ring.",
+			"detail": "Score %d. Choose a route for the next board." % run.score if run.awaiting_upgrade_choice else "Score %d. Press on to the next board." % run.score,
+		}
+	if player.alive:
+		return {}
+	return {
+		"kind": "defeat",
+		"title": "Run Ended",
+		"summary": failure_reason if not failure_reason.is_empty() else "The maze claimed this run.",
+		"detail": "Board %d. Score %d." % [run.board_depth, run.score],
+	}
 
 
 func _adjacent_revealed_roles(origin: Vector2i, role_id: String) -> Array[Vector2i]:

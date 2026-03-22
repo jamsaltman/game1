@@ -40,6 +40,11 @@ var _section_cache: Dictionary = {}
 @onready var _upgrade_overlay: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay
 @onready var _upgrade_title: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeTitle
 @onready var _upgrade_buttons_box: VBoxContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/UpgradeOverlay/MarginBox/UpgradeBox/UpgradeButtons
+@onready var _game_over_overlay: PanelContainer = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay
+@onready var _game_over_eyebrow: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox/GameOverEyebrow
+@onready var _game_over_title: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox/GameOverTitle
+@onready var _game_over_body: Label = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox/GameOverBody
+@onready var _game_over_restart_button: Button = $Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox/GameOverRestart
 @onready var _action_row: HBoxContainer = $Margin/Root/Bottom/ActionDock/MarginBox/ActionRow
 @onready var _hover_state_label: Label = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverState
 @onready var _hover_card: TextureRect = $Margin/Root/Top/RightRailScroll/RightRail/HoverPanel/MarginBox/HoverBox/HoverCard
@@ -58,6 +63,7 @@ func _ready() -> void:
 	_build_pressure_bar()
 	_build_structure_cards()
 	_build_upgrade_buttons()
+	_game_over_restart_button.pressed.connect(_on_game_over_restart_pressed)
 	_pixel_toggle.toggled.connect(_on_pixel_toggle_toggled)
 	resized.connect(_refresh_backdrop_textures)
 	call_deferred("_refresh_backdrop_textures")
@@ -89,6 +95,7 @@ func update_state(state: Dictionary) -> void:
 	_refresh_section_if_changed("structures", state.get("structure_items", []), _refresh_structures)
 	_refresh_section_if_changed("minimap", state.get("minimap", {}), _refresh_minimap)
 	_refresh_section_if_changed("upgrades", state.get("upgrade_items", []), _refresh_upgrade_overlay)
+	_refresh_section_if_changed("game_over", _get_game_over_payload(state), _refresh_game_over_overlay)
 
 
 func update_hover_card(card_data: Dictionary) -> void:
@@ -148,7 +155,14 @@ func _apply_static_theme() -> void:
 	_hover_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_theme(_next_reveal_label, 14, _theme_manifest.get_color("danger"), false)
 	_apply_label_theme(_upgrade_title, 24, _theme_manifest.get_color("ink"), true)
+	_game_over_overlay.add_theme_stylebox_override("panel", _painter.make_panel_style("paper", _theme_manifest.get_color("danger")))
+	_apply_label_theme(_game_over_eyebrow, 13, _theme_manifest.get_color("danger"), true)
+	_apply_label_theme(_game_over_title, 28, _theme_manifest.get_color("ink"), true)
+	_apply_label_theme(_game_over_body, 16, _theme_manifest.get_color("ink_soft"), false)
+	_game_over_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_style_button(_game_over_restart_button, false, true)
 	_upgrade_overlay.visible = false
+	_game_over_overlay.visible = false
 	_hover_card.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hover_card.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_minimap_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -369,6 +383,44 @@ func _refresh_upgrade_overlay(items: Array) -> void:
 		_style_button(button, false, false)
 
 
+func _get_game_over_payload(state: Dictionary) -> Dictionary:
+	var is_loss := bool(state.get("show_game_over", false))
+	if not is_loss:
+		var end_state := str(state.get("end_state", ""))
+		is_loss = end_state == "loss" or end_state == "defeat"
+	if not is_loss and state.has("player_alive"):
+		is_loss = not bool(state.get("player_alive", true))
+	var upgrade_items: Array = state.get("upgrade_items", [])
+	var overlay_visible := is_loss and upgrade_items.is_empty()
+	if not overlay_visible:
+		return {"visible": false}
+
+	var score_value := int(state.get("score", maxi(int(state.get("depth", 1)) - 1, 0)))
+	var title := str(state.get("game_over_title", state.get("end_state_title", "Run Lost")))
+	var reason := str(state.get("game_over_reason", state.get("failure_reason", state.get("status", "The maze closed around you."))))
+	if reason.is_empty():
+		reason = "The maze closed around you."
+	var body := reason
+	if score_value > 0:
+		body += "\n\nDepth cleared: %d" % score_value
+	return {
+		"visible": true,
+		"eyebrow": str(state.get("game_over_eyebrow", "RUN ENDED")),
+		"title": title,
+		"body": body,
+	}
+
+
+func _refresh_game_over_overlay(payload: Dictionary) -> void:
+	var visible := bool(payload.get("visible", false))
+	_game_over_overlay.visible = visible
+	if not visible:
+		return
+	_game_over_eyebrow.text = str(payload.get("eyebrow", "RUN ENDED"))
+	_game_over_title.text = str(payload.get("title", "Run Lost"))
+	_game_over_body.text = str(payload.get("body", "The maze closed around you."))
+
+
 func _style_button(button: BaseButton, selected: bool, danger: bool) -> void:
 	var normal: StyleBoxTexture = _painter.make_button_style(selected, danger, button.disabled)
 	var hover: StyleBoxTexture = _painter.make_panel_style("selected_button" if selected else ("danger_button" if danger else "paper_soft"))
@@ -399,6 +451,10 @@ func _on_upgrade_pressed(button: Button) -> void:
 	if upgrade_id.is_empty():
 		return
 	emit_signal("upgrade_requested", upgrade_id)
+
+
+func _on_game_over_restart_pressed() -> void:
+	emit_signal("reset_requested")
 
 
 func _on_pixel_toggle_toggled(enabled: bool) -> void:

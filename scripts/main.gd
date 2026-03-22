@@ -39,7 +39,10 @@ func _input(event: InputEvent) -> void:
 		if event.keycode == KEY_R:
 			_board.reset_board()
 			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_Z:
+			return
+		if _board.is_interaction_locked():
+			return
+		if event.keycode == KEY_Z:
 			_board.try_undo()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_SPACE:

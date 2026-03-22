@@ -240,6 +240,49 @@ text = "Choose a route"
 layout_mode = 2
 theme_override_constants/separation = 10
 
+[node name="GameOverOverlay" type="PanelContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost"]
+visible = false
+custom_minimum_size = Vector2(500, 300)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -150.0
+offset_right = 250.0
+offset_bottom = 150.0
+mouse_filter = 1
+
+[node name="MarginBox" type="MarginContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay"]
+layout_mode = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 20
+
+[node name="GameOverBox" type="VBoxContainer" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="GameOverEyebrow" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox"]
+layout_mode = 2
+text = "RUN ENDED"
+
+[node name="GameOverTitle" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox"]
+layout_mode = 2
+text = "Caught in the maze"
+
+[node name="GameOverBody" type="Label" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox"]
+layout_mode = 2
+text = "The route collapsed. Reset the run and try a different line."
+
+[node name="GameOverRestart" type="Button" parent="Margin/Root/Top/CenterColumn/BoardPanel/MarginBox/BoardHost/GameOverOverlay/MarginBox/GameOverBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 62)
+text = "Restart run"
+
 [node name="RightRailScroll" type="ScrollContainer" parent="Margin/Root/Top"]
 layout_mode = 2
 custom_minimum_size = Vector2(298, 0)
