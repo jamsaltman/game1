@@ -1,6 +1,6 @@
 # Gameplay Backlog
 
-Current read: the core loop is functional, but the game did not originally communicate failure with enough force. Pressure now ends runs and defeat is modal, so the biggest remaining work is turn clarity and onboarding polish.
+Current read: the core loop is functional, but the game did not originally communicate failure with enough force. Pressure now ends runs, resets each board, and defeat is modal, so the biggest remaining work is turn clarity and onboarding polish.
 
 ## Priority Order
 
@@ -21,7 +21,7 @@ Current read: the core loop is functional, but the game did not originally commu
 ### P2 - Tuning pass
 - Rebalance the frequency and placement of punishing roles after the end-state work lands.
 - Tune upgrade pacing so the run reaches interesting ability combinations sooner.
-- Consider whether the pressure cap should be adjusted after more playtesting.
+- Consider whether the pressure cap or warning threshold should be adjusted after more playtesting.
 
 ## Notes
 

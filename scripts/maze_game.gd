@@ -57,6 +57,7 @@ func start_new_run(seed: int = random_seed) -> void:
 func start_next_board(increment_depth: bool = true) -> void:
 	if increment_depth:
 		run.board_depth += 1
+	run.turn_index = 0
 	player.alive = true
 	player.position = get_center_position()
 	player.grabbed_by = INVALID_POS
