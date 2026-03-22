@@ -5,8 +5,7 @@ const Types = preload("res://scripts/living_maze_types.gd")
 const ThemeManifestRef = preload("res://themes/ink_theme_manifest.tres")
 
 const INVALID_POS := Vector2i(-999, -999)
-const PRESSURE_MAX := 10
-const PRESSURE_WARNING := 8
+const BASE_PRESSURE_MAX := 10
 const DIRECTIONS := [
 	Vector2i.UP,
 	Vector2i.RIGHT,
@@ -343,8 +342,8 @@ func get_hud_state() -> Dictionary:
 		"subtitle_text": _theme_manifest.subtitle_text,
 		"objective_text": "Reach any edge to escape.",
 		"pressure_current": pressure_value,
-		"pressure_max": PRESSURE_MAX,
-		"pressure_warning": pressure_value >= PRESSURE_WARNING,
+		"pressure_max": _get_pressure_max(),
+		"pressure_warning": pressure_value >= _get_pressure_warning_threshold(),
 		"last_role_name": role_name,
 		"last_role_description": role_description,
 		"failure_reason": failure_reason,
@@ -403,13 +402,13 @@ func _build_role_definitions() -> void:
 	role_definitions.clear()
 	_add_role("pusher", "Pusher", "pusher", "Pushes you 1 tile away when active beside you.", "active", 14, 1, 0)
 	_add_role("puller", "Puller", "puller", "Pulls you 1 tile toward itself when active beside you.", "active", 14, 1, 0)
-	_add_role("blocker", "Blocker", "blocker", "Stops movement into its tile unless you have bypass.", "reactive", 3, 1, 0)
-	_add_role("redirector", "Redirector", "redirector", "Redirects incoming movement clockwise.", "reactive", 2, 2, 0)
+	_add_role("blocker", "Blocker", "blocker", "Stops movement into its tile unless you have bypass.", "reactive", 3, 2, 0)
+	_add_role("redirector", "Redirector", "redirector", "Redirects incoming movement clockwise.", "reactive", 2, 3, 0)
 	_add_role("grabber", "Grabber", "grabber", "Holds you in place once you end beside it.", "reactive", 2, 2, 0)
 	_add_role("guide", "Guide", "guide", "Reveals up to 2 nearby hidden people.", "on_reveal", 2, 1, 0)
 	_add_role("smuggler", "Smuggler", "smuggler", "Grants a one-time blocker bypass.", "on_reveal", 2, 1, 0)
 	_add_role("rewinder", "Rewinder", "rewinder", "Grants 1 undo charge when revealed.", "on_reveal", 2, 1, 0)
-	_add_role("killer", "Killer", "killer", "Kills you if you enter its tile.", "reactive", 1, 1, 0)
+	_add_role("killer", "Killer", "killer", "Kills you if you enter its tile.", "reactive", 1, 2, 0)
 
 
 func _build_upgrade_definitions() -> void:
@@ -429,16 +428,30 @@ func _generate_board() -> void:
 		var counts: Dictionary = {}
 		var center := get_center_position()
 		var first_ring := _get_adjacent_positions(center)
-		var transport_slots := first_ring.duplicate()
-		transport_slots.shuffle()
-		var transport_pos: Vector2i = transport_slots[0]
-		var help_pos: Vector2i = transport_slots[1]
 		var transport_roles := ["pusher", "puller"]
 		var help_roles := ["guide", "smuggler", "rewinder"]
-		var assigned_roles: Dictionary = {
-			transport_pos: transport_roles[rng.randi_range(0, transport_roles.size() - 1)],
-			help_pos: help_roles[rng.randi_range(0, help_roles.size() - 1)],
-		}
+		var assigned_roles: Dictionary = {}
+		if run.board_depth == 1:
+			var safe_slots := first_ring.duplicate()
+			_shuffle(safe_slots)
+			var forced_roles: Array[String] = [
+				transport_roles[rng.randi_range(0, transport_roles.size() - 1)],
+				transport_roles[rng.randi_range(0, transport_roles.size() - 1)],
+				help_roles[rng.randi_range(0, help_roles.size() - 1)],
+				help_roles[rng.randi_range(0, help_roles.size() - 1)],
+			]
+			_shuffle(forced_roles)
+			for index in range(safe_slots.size()):
+				assigned_roles[safe_slots[index]] = forced_roles[index]
+		else:
+			var transport_slots := first_ring.duplicate()
+			_shuffle(transport_slots)
+			var transport_pos: Vector2i = transport_slots[0]
+			var help_pos: Vector2i = transport_slots[1]
+			assigned_roles = {
+				transport_pos: transport_roles[rng.randi_range(0, transport_roles.size() - 1)],
+				help_pos: help_roles[rng.randi_range(0, help_roles.size() - 1)],
+			}
 
 		for y in range(grid_size.y):
 			for x in range(grid_size.x):
@@ -472,15 +485,15 @@ func _generate_board() -> void:
 func _pick_role_for_position(pos: Vector2i, distance: int, counts: Dictionary) -> String:
 	var candidates: Array[String] = []
 	var weights: Array[int] = []
-	var center := get_center_position()
 	var first_ring_allowed := {
 		"pusher": true,
 		"puller": true,
 		"guide": true,
 		"smuggler": true,
 		"rewinder": true,
-		"blocker": true,
 	}
+	if run.board_depth >= 2:
+		first_ring_allowed["blocker"] = true
 	for role_id in role_definitions.keys():
 		var definition: Types.RoleDefinition = role_definitions[role_id]
 		if run.board_depth < definition.min_depth:
@@ -503,19 +516,21 @@ func _pick_role_for_position(pos: Vector2i, distance: int, counts: Dictionary) -
 func _is_generation_acceptable() -> bool:
 	var center := get_center_position()
 	var first_ring := _get_adjacent_positions(center)
-	var has_transport := false
-	var has_help := false
+	var transport_count := 0
+	var help_count := 0
 	for pos in first_ring:
 		var cell = get_cell(pos)
 		if cell == null:
 			continue
-		if cell.role_id == "pusher" or cell.role_id == "puller":
-			has_transport = true
-		if cell.role_id == "guide" or cell.role_id == "smuggler" or cell.role_id == "rewinder":
-			has_help = true
+		if _is_transport_role(cell.role_id):
+			transport_count += 1
+		if _is_help_role(cell.role_id):
+			help_count += 1
 		if cell.role_id == "killer":
 			return false
-	return has_transport and has_help
+	if run.board_depth == 1:
+		return transport_count >= 2 and help_count >= 2
+	return transport_count >= 1 and help_count >= 1
 
 
 func _execute_peek(pos: Vector2i) -> Dictionary:
@@ -640,7 +655,10 @@ func _reveal_cell(cell, revealed_positions: Array[Dictionary], delayed: bool) ->
 	cell.hidden = false
 	cell.previewed = false
 	cell.revealed_on_turn = run.turn_index
-	cell.activates_on_turn = run.turn_index + 1 if delayed else run.turn_index
+	var activate_turn := run.turn_index + 1 if delayed else run.turn_index
+	if delayed and run.board_depth == 1 and _is_transport_role(cell.role_id) and _manhattan_distance(cell.grid_position, get_center_position()) == 1:
+		activate_turn = run.turn_index
+	cell.activates_on_turn = activate_turn
 	last_role_id = cell.role_id
 	revealed_positions.append({
 		"position": cell.grid_position,
@@ -953,7 +971,7 @@ func _refresh_turn_report(revealed_positions: Array, movement_steps: Array, bonu
 		"player_alive": player.alive,
 		"failure_reason": failure_reason,
 		"pressure_current": _get_pressure_value(),
-		"pressure_max": PRESSURE_MAX,
+		"pressure_max": _get_pressure_max(),
 		"end_state": _get_end_state_payload(),
 	}
 
@@ -976,12 +994,28 @@ func _refresh_status_text() -> void:
 	if undo_charges > 0:
 		status_text += " Undo %d." % undo_charges
 	var pressure := _get_pressure_value()
-	if pressure >= PRESSURE_WARNING:
-		status_text += " Pressure %d/%d." % [pressure, PRESSURE_MAX]
+	if pressure >= _get_pressure_warning_threshold():
+		status_text += " Pressure %d/%d." % [pressure, _get_pressure_max()]
+
+
+func _get_pressure_max() -> int:
+	if run.board_depth <= 1:
+		return 16
+	if run.board_depth == 2:
+		return 13
+	return BASE_PRESSURE_MAX
+
+
+func _get_pressure_warning_threshold() -> int:
+	return maxi(_get_pressure_max() - 2, 1)
 
 
 func _get_pressure_value() -> int:
 	var pressure := run.turn_index
+	if run.board_depth <= 1:
+		pressure = maxi(pressure - 2, 0)
+	elif run.board_depth == 2:
+		pressure = maxi(pressure - 1, 0)
 	if player.is_grabbed():
 		pressure += 2
 	if bool(player.board_charges.get("anchor_ready", false)):
@@ -990,19 +1024,21 @@ func _get_pressure_value() -> int:
 		var cell = get_cell(pos)
 		if cell == null or cell.hidden:
 			continue
-		if cell.role_id in ["pusher", "puller", "killer", "grabber"]:
+		if cell.role_id in ["killer", "grabber"]:
 			pressure += 1
-	return clampi(pressure, 0, PRESSURE_MAX)
+		elif run.board_depth >= 2 and cell.role_id in ["blocker", "redirector"]:
+			pressure += 1
+	return clampi(pressure, 0, _get_pressure_max())
 
 
 func _trigger_pressure_loss_if_needed() -> bool:
 	if not player.alive or board_cleared:
 		return false
-	if _get_pressure_value() < PRESSURE_MAX:
+	if _get_pressure_value() < _get_pressure_max():
 		return false
 	player.alive = false
 	failure_reason = "Pressure maxed out. The maze closed in."
-	_push_event("Pressure hits %d. The maze closes in." % PRESSURE_MAX)
+	_push_event("Pressure hits %d. The maze closes in." % _get_pressure_max())
 	return true
 
 
@@ -1022,6 +1058,14 @@ func _get_end_state_payload() -> Dictionary:
 		"summary": failure_reason if not failure_reason.is_empty() else "The maze claimed this run.",
 		"detail": "Board %d. Score %d." % [run.board_depth, run.score],
 	}
+
+
+func _is_transport_role(role_id: String) -> bool:
+	return role_id == "pusher" or role_id == "puller"
+
+
+func _is_help_role(role_id: String) -> bool:
+	return role_id == "guide" or role_id == "smuggler" or role_id == "rewinder"
 
 
 func _adjacent_revealed_roles(origin: Vector2i, role_id: String) -> Array[Vector2i]:
